@@ -1,0 +1,28 @@
+{
+  "procedural": {
+    "ppo": {
+      "n_episodes": 300,
+      "success_rate": 0.6666666666666666,
+      "mean_steps": 26.38,
+      "mean_travel_km": 158.28,
+      "mean_final_distance_km": 26.61449890845722,
+      "mean_reward": 115.7453354080571
+    },
+    "random": {
+      "n_episodes": 300,
+      "success_rate": 0.04666666666666667,
+      "mean_steps": 38.81333333333333,
+      "mean_travel_km": 186.24,
+      "mean_final_distance_km": 154.77329734986523,
+      "mean_reward": -30.006556380325122
+    },
+    "direct": {
+      "n_episodes": 300,
+      "success_rate": 0.6633333333333333,
+      "mean_steps": 26.86,
+      "mean_travel_km": 161.16,
+      "mean_final_distance_km": 26.98542809938436,
+      "mean_reward": 115.87164593388525
+    }
+  }
+}

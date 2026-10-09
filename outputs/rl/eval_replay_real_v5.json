@@ -1,0 +1,54 @@
+{
+  "procedural": {
+    "ppo": {
+      "n_episodes": 200,
+      "success_rate": 0.27,
+      "mean_steps": 49.34,
+      "mean_travel_km": 1720.25,
+      "mean_final_distance_km": 130.64382693276187,
+      "mean_reward": 67.5997515393091
+    },
+    "random": {
+      "n_episodes": 200,
+      "success_rate": 0.025,
+      "mean_steps": 58.835,
+      "mean_travel_km": 1646.225,
+      "mean_final_distance_km": 489.1443305350121,
+      "mean_reward": -279.5104824682921
+    },
+    "direct": {
+      "n_episodes": 200,
+      "success_rate": 0.275,
+      "mean_steps": 50.61,
+      "mean_travel_km": 1765.05,
+      "mean_final_distance_km": 134.6963354841586,
+      "mean_reward": 47.49970265964232
+    }
+  },
+  "replay": {
+    "ppo": {
+      "n_episodes": 123,
+      "success_rate": 0.024390243902439025,
+      "mean_steps": 2.4796747967479673,
+      "mean_travel_km": 86.78861788617886,
+      "mean_final_distance_km": 242.35477118977724,
+      "mean_reward": -48.08902416786329
+    },
+    "random": {
+      "n_episodes": 123,
+      "success_rate": 0.024390243902439025,
+      "mean_steps": 2.5609756097560976,
+      "mean_travel_km": 44.10569105691057,
+      "mean_final_distance_km": 282.4090125958417,
+      "mean_reward": -86.521002499205
+    },
+    "direct": {
+      "n_episodes": 123,
+      "success_rate": 0.032520325203252036,
+      "mean_steps": 2.430894308943089,
+      "mean_travel_km": 84.51219512195122,
+      "mean_final_distance_km": 246.3155978613697,
+      "mean_reward": -56.9812061891239
+    }
+  }
+}

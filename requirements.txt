@@ -1,0 +1,16 @@
+# Pinned to versions verified during development (see pyproject.toml for the
+# unpinned package list). Streamlit Community Cloud reads this file.
+numpy>=1.26
+scipy>=1.11
+xarray>=2024.1
+netCDF4>=1.6
+gudhi>=3.9
+scikit-learn>=1.3
+shapely>=2.0
+gymnasium>=0.29
+stable-baselines3>=2.2
+earthaccess>=0.9
+plotly>=5.24
+streamlit>=1.38
+folium>=0.16
+pandas>=2.1

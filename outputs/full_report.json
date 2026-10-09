@@ -1,0 +1,79 @@
+{
+  "scene": {
+    "n_time_steps": 30,
+    "n_eddy_specs": 5
+  },
+  "detection": {
+    "n_truth_eddy_steps": 122,
+    "n_matched": 107,
+    "recall": 0.8770491803278688,
+    "mean_centroid_error_km": 3.2782539859860407,
+    "median_centroid_error_km": 2.9535139070216294
+  },
+  "track_continuity": {
+    "n_tracks": 5,
+    "mean_track_length": 21.4,
+    "max_track_length": 30,
+    "mean_track_length_frac_of_run": 0.7133333333333333
+  },
+  "forecast": {
+    "n_forecast_steps": 95,
+    "mean_forecast_error_km": 5.305880304363736,
+    "median_forecast_error_km": 4.797040737131783,
+    "p90_forecast_error_km": 9.000940706533491
+  },
+  "rl": {
+    "procedural": {
+      "ppo": {
+        "n_episodes": 200,
+        "success_rate": 0.625,
+        "mean_steps": 28.065,
+        "mean_travel_km": 168.39,
+        "mean_final_distance_km": 34.294902101461055,
+        "mean_reward": 107.71551264766651
+      },
+      "random": {
+        "n_episodes": 200,
+        "success_rate": 0.025,
+        "mean_steps": 39.415,
+        "mean_travel_km": 188.79,
+        "mean_final_distance_km": 155.07808470394616,
+        "mean_reward": -29.646587970447502
+      },
+      "direct": {
+        "n_episodes": 200,
+        "success_rate": 0.71,
+        "mean_steps": 26.37,
+        "mean_travel_km": 158.19,
+        "mean_final_distance_km": 28.06550739495849,
+        "mean_reward": 109.24823398276781
+      }
+    },
+    "replay": {
+      "ppo": {
+        "n_episodes": 4,
+        "success_rate": 0.5,
+        "mean_steps": 21.75,
+        "mean_travel_km": 130.5,
+        "mean_final_distance_km": 36.297606694047104,
+        "mean_reward": 82.15488759115937
+      },
+      "random": {
+        "n_episodes": 4,
+        "success_rate": 0.0,
+        "mean_steps": 25.25,
+        "mean_travel_km": 123.0,
+        "mean_final_distance_km": 153.3230242667629,
+        "mean_reward": -39.939864716191494
+      },
+      "direct": {
+        "n_episodes": 4,
+        "success_rate": 0.5,
+        "mean_steps": 19.25,
+        "mean_travel_km": 115.5,
+        "mean_final_distance_km": 47.044975895843926,
+        "mean_reward": 79.16395241910693
+      }
+    }
+  }
+}

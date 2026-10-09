@@ -1,0 +1,13 @@
+[project]
+name = "eddyhunter"
+version = "0.1.0"
+description = "SWOT/OSCAR mesoscale eddy detection, tracking, forecasting, and PPO-based navigation"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy", "scipy", "xarray", "netCDF4", "gudhi", "scikit-learn",
+    "shapely", "gymnasium", "stable-baselines3", "earthaccess",
+    "plotly>=5.24", "streamlit", "folium", "pandas",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

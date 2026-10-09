@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+venv/
+.venv/
+
+# Real credentials -- never commit, even by accident. Only *.example files
+# (no real secrets) are meant to be tracked.
+.streamlit/secrets.toml
+
+# Local live-refresh scratch folders (raw downloaded granules), if used.
+data/swot/*.nc
+data/oscar/*.nc
+
+# Sync bookkeeping -- regenerated at runtime, not meaningful to track.
+outputs/.last_nasa_sync
