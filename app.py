@@ -132,7 +132,7 @@ def run_nasa_sync(force: bool = False):
     if not force and last is not None and (now - last) < pd.Timedelta(hours=SYNC_INTERVAL_HOURS):
         return False, None
     from eddyhunter.live import sync_from_nasa_and_refresh
-    result = sync_from_nasa_and_refresh(out_dir=str(OUT))
+    result = sync_from_nasa_and_refresh(out_dir=str(OUT), days_back=25)
     if result.ok:
         _LAST_SYNC_FILE.write_text(now.isoformat())
         load_outputs.clear()

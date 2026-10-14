@@ -182,7 +182,7 @@ def _merge_time_series(old_ds: xr.Dataset, new_ds: xr.Dataset) -> xr.Dataset:
 def sync_from_nasa_and_refresh(
     out_dir: str,
     bbox: BBox = DEFAULT_BBOX,
-    days_back: int = 5,
+    days_back: int = 25,
     grid_step_deg: float = 0.05,
     max_date_gap_days: int = 1,
 ) -> RefreshResult:

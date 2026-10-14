@@ -59,7 +59,7 @@ LIVE_OSCAR_SHORT_NAME = "OSCAR_L4_OC_NRT_V2.0"
 class LiveFetchConfig:
     swot_short_name: str = DEFAULT_SWOT_SHORT_NAME
     oscar_short_name: str = LIVE_OSCAR_SHORT_NAME
-    days_back: int = 10  # NRT latency is ~2 days; this leaves buffer for processing gaps/weekends
+    days_back: int = 25  # NRT latency is ~2 days, but PO.DAAC NRT production has had reported multi-week stalls -- see live.py
     max_granules_per_product: int = 40
 
 
