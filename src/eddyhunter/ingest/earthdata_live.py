@@ -119,6 +119,6 @@ def fetch_recent_granules(
         short_name=config.swot_short_name, bounding_box=ea_bbox, temporal=temporal,
         count=config.max_granules_per_product,
     )
-    swot_files = earthaccess.download(swot_results, local_path=str(swot_dir)) if swot_files else []
+    swot_files = earthaccess.download(swot_results, local_path=str(swot_dir)) if swot_results else []
 
     return len(oscar_files), len(swot_files)
