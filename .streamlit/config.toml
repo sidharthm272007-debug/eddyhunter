@@ -1,0 +1,11 @@
+# Pin an explicit theme so the app looks the same everywhere -- without
+# this, Streamlit Cloud falls back to the visitor's OS/browser color scheme
+# (often dark), which clashed badly with this app's custom light-card CSS
+# (dark-navy headings on a black background, near-invisible).
+[theme]
+base = "light"
+primaryColor = "#1f77b4"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f0f6fb"
+textColor = "#0b2a3d"
+font = "sans serif"

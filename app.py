@@ -53,36 +53,48 @@ st.set_page_config(page_title="EddyHunter", layout="wide", page_icon="🌊")
 st.markdown(
     """
     <style>
-    .block-container {padding-top: 1.6rem; padding-bottom: 2rem; max-width: 1400px;}
-    h1, h2, h3 { color: #0b3d5c; }
+    /* .streamlit/config.toml pins a light theme app-wide (base="light"), so
+       this CSS can assume a white/near-white background instead of fighting
+       whatever theme the visitor's OS prefers -- previously this stylesheet
+       set dark-navy text and light cards with no matching background pin,
+       which on Streamlit Cloud's default-dark visitors made headings and
+       labels nearly invisible against a black page. */
+    html, body, [data-testid="stAppViewContainer"] { background-color: #ffffff; }
+    .block-container {padding-top: 1.4rem; padding-bottom: 2rem; max-width: 1400px;}
+    h1, h2, h3, h4 { color: #0b2a3d; }
+    p, li, label, span { color: #1c3a4b; }
     div[data-testid="stMetric"] {
-        background: linear-gradient(135deg, #eaf4fb 0%, #dcebf7 100%);
-        border: 1px solid #c7ddee;
+        background: #f0f6fb;
+        border: 1px solid #cfe2f0;
         border-radius: 10px;
-        padding: 0.8rem 1rem 0.5rem 1rem;
+        padding: 0.9rem 1.1rem 0.6rem 1.1rem;
     }
-    div[data-testid="stMetricLabel"] { color: #0b3d5c; }
+    div[data-testid="stMetricValue"] { color: #0b2a3d; }
+    div[data-testid="stMetricLabel"] { color: #35647d; font-weight: 600; }
     .stTabs [data-baseweb="tab-list"] { gap: 4px; }
     .stTabs [data-baseweb="tab"] {
         background-color: #f0f6fb;
         border-radius: 8px 8px 0 0;
         padding: 8px 16px;
+        color: #1c3a4b;
     }
-    .stTabs [aria-selected="true"] { background-color: #d2e8f7 !important; }
+    .stTabs [aria-selected="true"] { background-color: #1f77b4 !important; }
+    .stTabs [aria-selected="true"] p { color: #ffffff !important; font-weight: 600; }
     section[data-testid="stSidebar"] { background-color: #f6fafd; }
+    section[data-testid="stSidebar"] * { color: #1c3a4b; }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# Free, tokenless basemap styles (MapLibre + OpenStreetMap / CARTO -- no API
-# key, no cost, no vendor lock-in; plotly>=5.24 ships these natively as
-# go.Scattermap / go.Densitymap, replacing the old Mapbox-token-only traces).
-MAP_STYLES = {
-    "OpenStreetMap": "open-street-map",
-    "Carto Light": "carto-positron",
-    "Carto Dark": "carto-darkmatter",
-}
+# The map view used to be built on go.Scattermap tile basemaps
+# (OpenStreetMap / CARTO). Dropped in favor of go.Scattergeo below: tile
+# basemaps render place-name labels in whatever language the tile server
+# defaults to for that region (Arabic for the Arabian Sea coastline), and
+# the zoom-to-bbox math was also wrong, leaving the view zoomed out to
+# roughly a quarter of the globe instead of the actual study area.
+# go.Scattergeo draws coastlines/country borders with no city/place labels
+# at all, fetches no tiles, and is scoped exactly to the data's own bbox.
 
 
 # ----------------------------------------------------------------------------
@@ -303,12 +315,13 @@ with tab_overview:
         st.markdown(
             f"""
 Running on **real SWOT L2 LR SSH Expert + OSCAR L4 currents** — {report['scene']['n_time_steps']} real
-overpasses, Arabian Sea, May 17–24 2024. Real satellite data has no ground-truth answer key, so these
-are counts and the model's own confidence, not accuracy scores against a known truth — that honest
+time steps over the Arabian Sea. Real satellite data has no ground-truth answer key, so these are
+counts and the model's own confidence, not accuracy scores against a known truth — that honest
 distinction (and what *can* still be validated: physical plausibility checks, track continuity, a
 sparse SWOT SSH cross-check) is in the Evaluation tab.
             """
         )
+        st.caption(report["scene"]["source"])
     else:
         c1.metric("Detection recall", f"{report['detection']['recall']*100:.1f}%")
         c2.metric("Centroid error", f"{report['detection']['mean_centroid_error_km']:.1f} km")
@@ -356,15 +369,11 @@ with st.sidebar:
 # ----------------------------------------------------------------------------
 with tab_detect:
     n_t = ds.sizes["time"]
-    ctrl1, ctrl2, ctrl3 = st.columns([2, 1, 1])
+    ctrl1, ctrl2 = st.columns([3, 1])
     with ctrl1:
         t = st.slider("Time step", 0, n_t - 1, 0, key="detect_t")
     with ctrl2:
         view = st.radio("View", ["🗺️ Map", "▦ Grid"], horizontal=True, key="detect_view")
-    with ctrl3:
-        basemap_label = st.selectbox(
-            "Basemap", list(MAP_STYLES.keys()), key="detect_basemap", disabled=not view.startswith("🗺️"),
-        )
 
     ssha_t = ds["ssha"].isel(time=t).values
     u_t = ds["u"].isel(time=t).values
@@ -379,23 +388,22 @@ with tab_detect:
     is_map = view.startswith("🗺️")
 
     if is_map:
-        # Background field as a colored point grid (not Heatmap, which is
-        # cartesian-only and can't sit on a tile map) -- subsampled so the
-        # browser renders a real OpenStreetMap/MapLibre basemap smoothly
-        # even for the full-resolution 93-day real series (501x401 cells).
+        # Background field as a colored point grid -- subsampled so the
+        # browser renders smoothly even for the full-resolution 93-day real
+        # series (501x401 cells).
         bg_step = max(1, int(np.sqrt((len(lats) * len(lons)) / 6000)))
         lon_grid, lat_grid = np.meshgrid(lons[::bg_step], lats[::bg_step])
         z_sub = ssha_t[::bg_step, ::bg_step]
         finite_bg = np.isfinite(z_sub)
-        fig.add_trace(go.Scattermap(
+        fig.add_trace(go.Scattergeo(
             lat=lat_grid[finite_bg], lon=lon_grid[finite_bg], mode="markers",
-            marker=dict(size=9, color=z_sub[finite_bg], colorscale="RdBu_r", cmid=0,
-                        colorbar=dict(title="SSHA (m)"), opacity=0.55),
+            marker=dict(size=7, color=z_sub[finite_bg], colorscale="RdBu_r", cmid=0,
+                        colorbar=dict(title="SSHA (m)"), opacity=0.6),
             name="SSHA", hoverinfo="skip",
         ))
 
         # velocity field as short directional line segments (one trace, NaN-
-        # separated -- the mapbox/maplibre equivalent of a quiver plot)
+        # separated -- the quiver-plot equivalent for a geo subplot)
         step = max(1, len(lons) // 18)
         lon_q, lat_q = np.meshgrid(lons[::step], lats[::step])
         u_sub, v_sub = u_t[::step, ::step], v_t[::step, ::step]
@@ -414,7 +422,7 @@ with tab_detect:
                     dlat = (v_sub[yi, xi] / mag[yi, xi]) * arrow_len[yi, xi]
                     lons_l += [lon_q[yi, xi], lon_q[yi, xi] + dlon, None]
                     lats_l += [lat_q[yi, xi], lat_q[yi, xi] + dlat, None]
-            fig.add_trace(go.Scattermap(
+            fig.add_trace(go.Scattergeo(
                 lat=lats_l, lon=lons_l, mode="lines",
                 line=dict(color="rgba(20,20,20,0.55)", width=2),
                 name="velocity", hoverinfo="skip",
@@ -423,10 +431,10 @@ with tab_detect:
         for _, row in eddies_t.iterrows():
             poly = shapely_wkt.loads(row.polygon_wkt)
             xs, ys = poly.exterior.coords.xy
-            fig.add_trace(go.Scattermap(
+            fig.add_trace(go.Scattergeo(
                 lat=list(ys), lon=list(xs), mode="lines", fill="toself",
                 line=dict(color=colors.get(row.rotation, "black"), width=2.5),
-                fillcolor="rgba(0,0,0,0.08)",
+                fillcolor="rgba(0,0,0,0.10)",
                 name=row.rotation, showlegend=False,
                 hovertext=f"{row.eddy_id}<br>P={row.persistence_m:.0f}m<br>area={row.area_km2:.0f}km2",
                 hoverinfo="text",
@@ -437,26 +445,42 @@ with tab_detect:
             if len(g) < 2:
                 continue
             rot = g.rotation.iloc[0]
-            fig.add_trace(go.Scattermap(
+            fig.add_trace(go.Scattergeo(
                 lat=g.centroid_lat, lon=g.centroid_lon, mode="lines+markers",
                 line=dict(color=colors.get(rot, "gray"), width=1.5),
                 marker=dict(size=6), showlegend=False, hoverinfo="skip", opacity=0.8,
             ))
 
-        center_lat = float(np.nanmean(lats))
-        center_lon = float(np.nanmean(lons))
-        lat_span = float(lats.max() - lats.min())
-        zoom = max(2.0, min(8.0, 7.5 - np.log2(max(lat_span, 1e-6))))
+        # Scope the geo subplot tightly to the data's own bbox (with a small
+        # padding margin) instead of a tile-map zoom level -- the earlier
+        # zoom formula only looked at latitude span and left the view
+        # zoomed out across roughly a quarter of the globe. go.Scattergeo
+        # also draws coastlines/country borders with no city/place-name
+        # labels at all, which is what actually fixes "the map shouldn't be
+        # in Arabic": there is no label layer to be in any language.
+        lat_min, lat_max = float(np.nanmin(lats)), float(np.nanmax(lats))
+        lon_min, lon_max = float(np.nanmin(lons)), float(np.nanmax(lons))
+        lat_pad = max(0.5, (lat_max - lat_min) * 0.08)
+        lon_pad = max(0.5, (lon_max - lon_min) * 0.08)
         fig.update_layout(
-            map=dict(style=MAP_STYLES[basemap_label], center=dict(lat=center_lat, lon=center_lon), zoom=zoom),
+            geo=dict(
+                projection_type="mercator",
+                lataxis=dict(range=[lat_min - lat_pad, lat_max + lat_pad]),
+                lonaxis=dict(range=[lon_min - lon_pad, lon_max + lon_pad]),
+                showland=True, landcolor="#eef2f0",
+                showocean=True, oceancolor="#dcedf7",
+                showcountries=True, countrycolor="#a9c2d4",
+                showcoastlines=True, coastlinecolor="#7b9cb3",
+                showlakes=False, showrivers=False,
+                bgcolor="#ffffff",
+            ),
             height=650, margin=dict(l=0, r=0, t=30, b=0),
             title=f"t={t}  ({str(ds['time'].values[t])[:10]})  —  blue=cyclonic, red=anticyclonic",
         )
         st.caption(
-            f"Basemap: {basemap_label} (free, open-source tiles — MapLibre + "
-            f"{'OpenStreetMap' if 'open-street-map' in MAP_STYLES[basemap_label] else 'CARTO'}, no API key). "
-            "Dots: SSH anomaly (subsampled). Lines: surface velocity direction. Filled outlines: validated "
-            "eddy polygons. Solid trails: accumulated tracks."
+            "Coastlines and country borders only — no place-name tiles, so there's no label layer to "
+            "render in any language. Dots: SSH anomaly (subsampled). Lines: surface velocity direction. "
+            "Filled outlines: validated eddy polygons. Solid trails: accumulated tracks."
         )
     else:
         fig.add_trace(go.Heatmap(
@@ -682,4 +706,58 @@ which is non-gating since coverage is only ~5% of the domain by construction.
         )
     else:
         st.subheader("Full evaluation report (synthetic ground truth)")
-    st.json(report)
+
+    def _fmt(key, val):
+        label = key.replace("_", " ").replace("n ", "# ").strip().capitalize()
+        if isinstance(val, bool):
+            return label, "Yes" if val else "No"
+        if isinstance(val, float):
+            return label, f"{val:,.3f}" if abs(val) < 10 else f"{val:,.1f}"
+        return label, val
+
+    def render_section(title, section):
+        if not isinstance(section, dict) or not section:
+            return
+        note = section.get("note")
+        scalars = {k: v for k, v in section.items()
+                   if k != "note" and not isinstance(v, (dict, list))}
+        nested = {k: v for k, v in section.items()
+                  if k != "note" and isinstance(v, (dict, list))}
+        st.markdown(f"#### {title}")
+        if scalars:
+            cols = st.columns(min(4, len(scalars)))
+            for i, (k, v) in enumerate(scalars.items()):
+                label, val = _fmt(k, v)
+                cols[i % len(cols)].metric(label, val)
+        for k, v in nested.items():
+            if isinstance(v, dict) and all(isinstance(x, dict) for x in v.values()):
+                # two-level nesting, e.g. rl.procedural.{ppo,direct,random}
+                rows = []
+                for policy_key, d in v.items():
+                    row = {"Policy": policy_key.replace("_", " ").title()}
+                    row.update({_fmt(kk, vv)[0]: _fmt(kk, vv)[1] for kk, vv in d.items()})
+                    rows.append(row)
+                st.markdown(f"**{k.replace('_', ' ').title()}**")
+                st.dataframe(pd.DataFrame(rows), width='stretch', hide_index=True)
+            elif isinstance(v, dict):
+                st.markdown(f"**{k.replace('_', ' ').title()}**")
+                st.dataframe(
+                    pd.DataFrame([{"": kk, " ": vv} for kk, vv in v.items()]),
+                    width='stretch', hide_index=True,
+                )
+            elif isinstance(v, list) and v:
+                st.markdown(f"**{k.replace('_', ' ').title()}**")
+                st.dataframe(pd.DataFrame(v), width='stretch', hide_index=True)
+        if note:
+            st.caption(f"ℹ️ {note}")
+        st.divider()
+
+    section_titles = {
+        "scene": "Scene", "detection": "Detection", "track_continuity": "Track continuity",
+        "forecast": "Forecast", "rl": "PPO navigation agent",
+    }
+    for key, section in report.items():
+        render_section(section_titles.get(key, key.replace("_", " ").title()), section)
+
+    with st.expander("Raw report JSON"):
+        st.json(report)
