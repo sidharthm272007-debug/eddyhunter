@@ -71,7 +71,7 @@ def build_report(out_dir: Path = OUT) -> dict:
     try:
         from eddyhunter.eval.crosscheck import run_contour_baseline_over_time, cross_validate
         t0 = time.time()
-        baseline_df = run_contour_baseline_over_time(ds)
+        baseline_df = run_contour_baseline_over_time(ds, source_field_name="vorticity")
         baseline_df.to_csv(out / "real_crosscheck_baseline.csv", index=False)
         crosscheck = cross_validate(eddies, baseline_df, max_match_km=60.0)
         crosscheck["runtime_s"] = round(time.time() - t0, 1)

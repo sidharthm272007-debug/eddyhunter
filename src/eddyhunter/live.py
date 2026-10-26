@@ -340,7 +340,7 @@ def _write_report(out: Path, ds: xr.Dataset, all_eddies: list, tracks: list) -> 
         from .eval.crosscheck import run_contour_baseline_over_time, cross_validate
         eddies_df_for_check = eddies_df if len(eddies_df) else None
         if eddies_df_for_check is not None:
-            baseline_df = run_contour_baseline_over_time(ds)
+            baseline_df = run_contour_baseline_over_time(ds, source_field_name="vorticity")
             baseline_df.to_csv(out / "real_crosscheck_baseline.csv", index=False)
             crosscheck = cross_validate(eddies_df_for_check, baseline_df, max_match_km=60.0)
             crosscheck["note"] = (

@@ -28,10 +28,15 @@ def haversine_km(lat1, lon1, lat2, lon2) -> float:
     return float(2 * EARTH_RADIUS_KM * np.arcsin(np.sqrt(a)))
 
 
-def run_contour_baseline_over_time(ds: xr.Dataset, **kwargs) -> pd.DataFrame:
+def run_contour_baseline_over_time(ds: xr.Dataset, source_field_name: str = "ssha", **kwargs) -> pd.DataFrame:
     """Run the independent contour detector on every time step of `ds`
     (must have u, v, ssha, lat, lon, time) and return one row per detected
-    eddy.
+    eddy. `source_field_name` must match the field the detector being
+    cross-checked actually ran on -- "vorticity" for real data (full OSCAR
+    areal coverage), "ssha" for the synthetic scene. See
+    detect_eddies_contour's docstring for why this matters: real SWOT SSH
+    only covers a narrow swath, so an ssha-based baseline on real data
+    would be comparing against an almost entirely-NaN field.
     """
     lats = ds["lat"].values
     lons = ds["lon"].values
@@ -41,7 +46,7 @@ def run_contour_baseline_over_time(ds: xr.Dataset, **kwargs) -> pd.DataFrame:
         v = ds["v"].isel(time=t_idx).values
         ssha = ds["ssha"].isel(time=t_idx).values
         fields = derive_fields(u, v, ssha, lats, lons)
-        for e in detect_eddies_contour(fields, t_idx, **kwargs):
+        for e in detect_eddies_contour(fields, t_idx, source_field_name=source_field_name, **kwargs):
             rows.append(dict(
                 time_index=e.time_index, centroid_lat=e.centroid_lat, centroid_lon=e.centroid_lon,
                 rotation=e.rotation, area_km2=e.area_km2, shape_error=e.shape_error,
