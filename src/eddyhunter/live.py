@@ -88,7 +88,17 @@ def refresh_real_pipeline(
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    swot_paths = sorted(str(p) for p in Path(swot_dir).glob("*.nc")) if Path(swot_dir).is_dir() else []
+    # Filter to *Expert* SWOT granules only: a real SWOT download folder can
+    # (and in practice does) contain several product variants for the same
+    # overpass side by side -- Basic, Expert, Unsmoothed, WindWave -- but
+    # `real_local._load_swot_granule` only knows how to parse the Expert
+    # product's flat (longitude, latitude, ssha_karin, ssh_karin_qual)
+    # layout. The Unsmoothed product in particular stores its data in
+    # netCDF groups, not root-level variables, so xr.open_dataset(..) on one
+    # of those sees 0 variables at the root and the ingest crashes with
+    # "No variable named 'longitude'" -- not a corrupt file, just the wrong
+    # product type. An unfiltered glob("*.nc") picks up all of them.
+    swot_paths = sorted(str(p) for p in Path(swot_dir).glob("*Expert*.nc")) if Path(swot_dir).is_dir() else []
     oscar_files = list(Path(oscar_dir).glob("*.nc"))
 
     if not oscar_files:
