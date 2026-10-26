@@ -52,36 +52,77 @@ st.set_page_config(page_title="EddyHunter", layout="wide", page_icon="🌊")
 # ----------------------------------------------------------------------------
 st.markdown(
     """
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
-    /* .streamlit/config.toml pins a light theme app-wide (base="light"), so
-       this CSS can assume a white/near-white background instead of fighting
-       whatever theme the visitor's OS prefers -- previously this stylesheet
-       set dark-navy text and light cards with no matching background pin,
-       which on Streamlit Cloud's default-dark visitors made headings and
-       labels nearly invisible against a black page. */
+    /* Clean, academic/editorial look: restrained neutral palette, a serif
+       for headings (reads as a research tool, not a SaaS product), no
+       colored card backgrounds or pill-shaped tabs -- those read as
+       "dashboard product" rather than "research instrument". Color is
+       reserved for things that carry actual meaning (cyclonic/anticyclonic
+       on the map, SSHA diverging scale), not decoration. */
     html, body, [data-testid="stAppViewContainer"] { background-color: #ffffff; }
-    .block-container {padding-top: 1.4rem; padding-bottom: 2rem; max-width: 1400px;}
-    h1, h2, h3, h4 { color: #0b2a3d; }
-    p, li, label, span { color: #1c3a4b; }
+    .block-container {padding-top: 2rem; padding-bottom: 3rem; max-width: 1320px;}
+
+    h1, h2, h3, h4 {
+        font-family: 'Source Serif 4', Georgia, serif;
+        color: #1b2733;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+    }
+    h1 { font-size: 2.1rem; border-bottom: 1px solid #e2e5e8; padding-bottom: 0.6rem; margin-bottom: 1.2rem; }
+    h3 { font-size: 1.15rem; margin-top: 1.8rem; }
+    p, li, label, span, div { font-family: 'Inter', -apple-system, sans-serif; }
+    p, li { color: #3c4a56; line-height: 1.6; }
+
+    /* Metrics: plain numbers with a thin top rule, no card/gradient box --
+       the restrained "stat in a research paper" look rather than a KPI
+       tile from a product dashboard. */
     div[data-testid="stMetric"] {
-        background: #f0f6fb;
-        border: 1px solid #cfe2f0;
-        border-radius: 10px;
-        padding: 0.9rem 1.1rem 0.6rem 1.1rem;
+        background: transparent;
+        border: none;
+        border-top: 2px solid #44607a;
+        border-radius: 0;
+        padding: 0.6rem 0 0.2rem 0;
     }
-    div[data-testid="stMetricValue"] { color: #0b2a3d; }
-    div[data-testid="stMetricLabel"] { color: #35647d; font-weight: 600; }
-    .stTabs [data-baseweb="tab-list"] { gap: 4px; }
+    div[data-testid="stMetricValue"] {
+        color: #1b2733;
+        font-family: 'Source Serif 4', Georgia, serif;
+        font-weight: 600;
+    }
+    div[data-testid="stMetricLabel"] {
+        color: #67747f;
+        font-weight: 500;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    /* Tabs: a simple underline, like a journal section nav -- no filled
+       pill backgrounds, no color-block "active" state. */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 28px;
+        border-bottom: 1px solid #e2e5e8;
+    }
     .stTabs [data-baseweb="tab"] {
-        background-color: #f0f6fb;
-        border-radius: 8px 8px 0 0;
-        padding: 8px 16px;
-        color: #1c3a4b;
+        background-color: transparent;
+        border-radius: 0;
+        padding: 8px 2px;
+        color: #67747f;
+        font-weight: 500;
     }
-    .stTabs [aria-selected="true"] { background-color: #1f77b4 !important; }
-    .stTabs [aria-selected="true"] p { color: #ffffff !important; font-weight: 600; }
-    section[data-testid="stSidebar"] { background-color: #f6fafd; }
-    section[data-testid="stSidebar"] * { color: #1c3a4b; }
+    .stTabs [aria-selected="true"] {
+        background-color: transparent !important;
+        border-bottom: 2px solid #44607a !important;
+    }
+    .stTabs [aria-selected="true"] p { color: #1b2733 !important; font-weight: 600; }
+
+    section[data-testid="stSidebar"] { background-color: #fafbfb; border-right: 1px solid #e8eaec; }
+    section[data-testid="stSidebar"] * { color: #3c4a56; }
+    section[data-testid="stSidebar"] h3 { font-size: 1rem; }
+
+    div[data-testid="stExpander"] { border: 1px solid #e2e5e8; border-radius: 4px; }
+    hr { border-color: #e8eaec; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -290,14 +331,14 @@ if source == "real" and not (OUT / "real_scene_fine.nc").exists():
 ds, eddies_df, tracks_df, track_b_df, report = load_outputs(source)
 model = load_ppo_model(source)
 
-st.title("🌊 EddyHunter")
+st.title("EddyHunter")
 st.caption(
     "SWOT sea-surface-height + OSCAR surface currents → alpha-complex / persistent-H1 "
     "eddy detection → tracking & forecasting → PPO navigation agent"
 )
 
 tab_overview, tab_detect, tab_rl, tab_eval = st.tabs(
-    ["🗺️ Overview", "🌀 Detection & Tracking", "🤖 PPO Navigation", "📊 Evaluation Report"]
+    ["Overview", "Detection & Tracking", "PPO Navigation", "Evaluation Report"]
 )
 
 # ----------------------------------------------------------------------------
@@ -341,7 +382,7 @@ pipeline running on actual satellite data.
         """
         digraph {
             rankdir=LR;
-            node [shape=box, style="rounded,filled", fillcolor="#eef3fb", fontname="Helvetica"];
+            node [shape=box, style="rounded,filled", fillcolor="#f5f6f7", color="#44607a", fontname="Helvetica"];
             SWOT [label="SWOT SSH"]; OSCAR [label="OSCAR u,v"];
             clean [label="Clean + regrid"];
             topo [label="Alpha complex\\n+ persistent H1"];
@@ -373,7 +414,7 @@ with tab_detect:
     with ctrl1:
         t = st.slider("Time step", 0, n_t - 1, 0, key="detect_t")
     with ctrl2:
-        view = st.radio("View", ["🗺️ Map", "▦ Grid"], horizontal=True, key="detect_view")
+        view = st.radio("View", ["Map", "Grid"], horizontal=True, key="detect_view")
 
     ssha_t = ds["ssha"].isel(time=t).values
     u_t = ds["u"].isel(time=t).values
@@ -385,7 +426,7 @@ with tab_detect:
     colors = {"cyclonic": "#1f77b4", "anticyclonic": "#d62728"}
 
     fig = go.Figure()
-    is_map = view.startswith("🗺️")
+    is_map = view.startswith("Map")
 
     if is_map:
         # Background field as a colored point grid -- subsampled so the
