@@ -3,6 +3,7 @@ but honest about what real data (no ground truth) can and can't support.
 """
 import json
 import sys
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -10,6 +11,7 @@ import xarray as xr
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "outputs"
+sys.path.insert(0, str(ROOT / "src"))
 
 
 def build_report(out_dir: Path = OUT) -> dict:
@@ -57,6 +59,33 @@ def build_report(out_dir: Path = OUT) -> dict:
             "mean_fit_r2": float(track_b["fit_r2"].mean()) if len(track_b) else float("nan"),
         },
     }
+
+    # Independent real-world cross-check: a structurally different detector
+    # (closed-contour SSH growing, the same family AVISO's own published
+    # eddy atlas and py-eddy-tracker use) run on this project's OWN real
+    # SWOT/OSCAR field. Unlike everything else in this report, this doesn't
+    # need external ground truth -- agreement between two different methods
+    # on the same real data is itself evidence neither is finding noise.
+    # Needs `contourpy` (pip install contourpy) -- not a requirements.txt
+    # dependency since this never runs inside the deployed app, only here.
+    try:
+        from eddyhunter.eval.crosscheck import run_contour_baseline_over_time, cross_validate
+        t0 = time.time()
+        baseline_df = run_contour_baseline_over_time(ds)
+        baseline_df.to_csv(out / "real_crosscheck_baseline.csv", index=False)
+        crosscheck = cross_validate(eddies, baseline_df, max_match_km=60.0)
+        crosscheck["runtime_s"] = round(time.time() - t0, 1)
+        crosscheck["note"] = (
+            "\"Agreeing\" means the independent contour method places an eddy of the same rotation "
+            "sign within max_match_km of ours in the same snapshot. Not a claim either method is ground "
+            "truth -- evidence our detections correspond to real SSH structure a standard, independently "
+            "implemented method also finds, not artifacts of the topological method alone."
+        )
+        report["real_world_cross_check"] = crosscheck
+    except ImportError as exc:
+        report["real_world_cross_check"] = {
+            "note": f"Skipped -- missing dependency ({exc}). Run: pip install contourpy"
+        }
 
     rl_path = out / "rl" / "eval_replay_real_v4.json"
     if rl_path.exists():

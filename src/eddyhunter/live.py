@@ -317,6 +317,36 @@ def _write_report(out: Path, ds: xr.Dataset, all_eddies: list, tracks: list) -> 
     else:
         report["rl"] = {"note": "RL has not been trained yet."}
 
+    # Independent real-world cross-check: a structurally different detector
+    # (closed-contour SSH growing, same family as AVISO's own published eddy
+    # atlas / py-eddy-tracker) run on this project's OWN real field. Lazily
+    # imported and try/excepted: `contourpy` isn't in requirements.txt on
+    # purpose (this never needs to run on the deployed app's own import
+    # path), so on a deployment without it this just skips with a note
+    # instead of breaking the sync -- same reasoning as the auto-sync-on-
+    # load OOM fix: never let an optional evaluation extra risk the core
+    # refresh flow working.
+    try:
+        from .eval.crosscheck import run_contour_baseline_over_time, cross_validate
+        eddies_df_for_check = eddies_df if len(eddies_df) else None
+        if eddies_df_for_check is not None:
+            baseline_df = run_contour_baseline_over_time(ds)
+            baseline_df.to_csv(out / "real_crosscheck_baseline.csv", index=False)
+            crosscheck = cross_validate(eddies_df_for_check, baseline_df, max_match_km=60.0)
+            crosscheck["note"] = (
+                "Independent closed-contour SSH detector (Chelton/Mason-style, same family as AVISO's "
+                "own published eddy atlas and py-eddy-tracker), run on this project's own real SWOT/"
+                "OSCAR field. \"Agreeing\" means it places an eddy of the same rotation sign within "
+                "max_match_km of ours in the same snapshot -- evidence our detections correspond to "
+                "real SSH structure an independently-implemented method also finds, not an artifact of "
+                "the topological method alone."
+            )
+            report["real_world_cross_check"] = crosscheck
+    except ImportError as exc:
+        report["real_world_cross_check"] = {"note": f"Skipped -- missing dependency ({exc})."}
+    except Exception as exc:  # noqa: BLE001 -- never let this optional step break a sync
+        report["real_world_cross_check"] = {"note": f"Skipped -- cross-check failed: {exc}"}
+
     (out / "real_full_report.json").write_text(json.dumps(report, indent=2))
 
 

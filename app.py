@@ -821,6 +821,7 @@ which is non-gating since coverage is only ~5% of the domain by construction.
     section_titles = {
         "scene": "Scene", "detection": "Detection", "track_continuity": "Track continuity",
         "forecast": "Forecast", "rl": "PPO navigation agent",
+        "real_world_cross_check": "Independent cross-check (closed-contour method)",
     }
     for key, section in report.items():
         render_section(section_titles.get(key, key.replace("_", " ").title()), section)
