@@ -251,22 +251,22 @@ if not ok:
     st.stop()
 
 if source == "real" and AUTO_SYNC:
-    # Web-deployment auto-refresh: check (at most once every SYNC_INTERVAL_HOURS)
-    # whether NASA Earthdata has anything new, before rendering. This is what
-    # makes the hosted app "live" without the visitor doing anything -- the
-    # common case is `ran=False` (still fresh), which costs nothing.
-    with st.spinner("Checking NASA Earthdata for new real SWOT/OSCAR granules..."):
-        ran, sync_result = run_nasa_sync(force=False)
-    if ran and not sync_result.ok and not (OUT / "real_scene_fine.nc").exists():
-        st.error(
-            f"This deployment has no real data cached yet, and the first NASA Earthdata sync failed: "
-            f"{sync_result.message}"
-        )
-        st.stop()
-    elif ran and not sync_result.ok:
-        st.caption(f"⚠️ Background NASA sync skipped this load ({sync_result.message}) -- showing last-cached real data.")
-    elif ran and sync_result.ok:
-        st.caption(f"🛰️ Auto-synced from NASA Earthdata: {sync_result.message}")
+    # NOT auto-run on page load anymore. Every page load used to check (and,
+    # once past SYNC_INTERVAL_HOURS, actually perform) a full NASA sync +
+    # detect/track/forecast rerun before the page could render at all -- on
+    # a cold container (e.g. right after this free-tier app wakes from sleep
+    # or gets redeployed, when outputs/.last_nasa_sync doesn't exist yet
+    # either) that stacked a full sync+pipeline run on top of an already
+    # heavy cold import of torch/stable-baselines3/gudhi, well within reach
+    # of the free tier's ~1GB RAM limit. Syncing is now strictly opt-in via
+    # the sidebar's "Force sync now" button -- the page itself only ever
+    # reads whatever's already cached, which is cheap and can't OOM on load.
+    last = _last_sync_time()
+    if last is None:
+        st.caption("🛰️ NASA auto-sync hasn't run yet this deployment -- click **Force sync now** in the sidebar to pull real data.")
+    else:
+        st.caption(f"🛰️ Showing cached real data (last NASA sync: {last.strftime('%Y-%m-%d %H:%M UTC')}). "
+                   "Click **Force sync now** in the sidebar to check for anything newer.")
 
 if source == "real" and not (OUT / "real_scene_fine.nc").exists():
     # The regridded real scene (hundreds of MB) isn't shipped in the project
