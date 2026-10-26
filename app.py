@@ -71,7 +71,6 @@ st.markdown(
     }
     html, body, [data-testid="stAppViewContainer"], .stApp { background-color: var(--bg); }
     .block-container {padding-top: 2rem; padding-bottom: 3rem; max-width: 1360px;}
-
     h1, h2, h3, h4 {
         font-family: 'Manrope', 'Inter', -apple-system, sans-serif;
         color: var(--text);
@@ -83,7 +82,6 @@ st.markdown(
     p, li, label, span, div { font-family: 'Inter', -apple-system, sans-serif; }
     p, li { color: var(--text-dim); line-height: 1.6; }
     [data-testid="stCaptionContainer"] { color: var(--text-dim) !important; }
-
     /* KPI tiles: dark card, rounded corners, accent left-border + glow --
        the "product dashboard" stat tile instead of a bare number. */
     div[data-testid="stMetric"] {
@@ -106,7 +104,6 @@ st.markdown(
         text-transform: uppercase;
         letter-spacing: 0.05em;
     }
-
     /* Tabs: filled pill for the active tab in the accent color -- a clear
        "you are here" state, like a real product's nav rather than a
        journal section list. */
@@ -127,15 +124,12 @@ st.markdown(
         color: var(--accent) !important;
     }
     .stTabs [aria-selected="true"] p { color: var(--accent) !important; font-weight: 700; }
-
     section[data-testid="stSidebar"] { background-color: var(--surface); border-right: 1px solid var(--border); }
     section[data-testid="stSidebar"] * { color: var(--text-dim); }
     section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] h3 { color: var(--text); font-size: 1rem; }
-
     div[data-testid="stExpander"] { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
     div[data-testid="stDataFrame"] { border: 1px solid var(--border); border-radius: 8px; }
     hr { border-color: var(--border); }
-
     .stButton button[kind="primary"] {
         background-color: var(--accent);
         color: #06201c;
@@ -144,7 +138,6 @@ st.markdown(
         border-radius: 8px;
     }
     .stButton button[kind="primary"]:hover { background-color: #5eead4; color: #06201c; }
-
     div[data-testid="stAlert"] { border-radius: 10px; border: 1px solid var(--border); }
     </style>
     """,
