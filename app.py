@@ -53,76 +53,99 @@ st.set_page_config(page_title="EddyHunter", layout="wide", page_icon="🌊")
 st.markdown(
     """
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
     <style>
-    /* Clean, academic/editorial look: restrained neutral palette, a serif
-       for headings (reads as a research tool, not a SaaS product), no
-       colored card backgrounds or pill-shaped tabs -- those read as
-       "dashboard product" rather than "research instrument". Color is
-       reserved for things that carry actual meaning (cyclonic/anticyclonic
-       on the map, SSHA diverging scale), not decoration. */
-    html, body, [data-testid="stAppViewContainer"] { background-color: #ffffff; }
-    .block-container {padding-top: 2rem; padding-bottom: 3rem; max-width: 1320px;}
+    /* Modern dark operational dashboard: dark navy surfaces, a teal/cyan
+       accent (reads as "ocean data product"), rounded cards with a soft
+       glow border instead of flat academic rules -- built to look like a
+       tool someone would actually run day to day, not a research figure. */
+    :root {
+        --bg: #0b0f14;
+        --surface: #121821;
+        --surface-2: #171f2a;
+        --border: #232d3a;
+        --accent: #2dd4bf;
+        --accent-soft: rgba(45, 212, 191, 0.12);
+        --text: #e6edf3;
+        --text-dim: #8b98a5;
+    }
+    html, body, [data-testid="stAppViewContainer"], .stApp { background-color: var(--bg); }
+    .block-container {padding-top: 2rem; padding-bottom: 3rem; max-width: 1360px;}
 
     h1, h2, h3, h4 {
-        font-family: 'Source Serif 4', Georgia, serif;
-        color: #1b2733;
-        font-weight: 600;
+        font-family: 'Manrope', 'Inter', -apple-system, sans-serif;
+        color: var(--text);
+        font-weight: 700;
         letter-spacing: -0.01em;
     }
-    h1 { font-size: 2.1rem; border-bottom: 1px solid #e2e5e8; padding-bottom: 0.6rem; margin-bottom: 1.2rem; }
-    h3 { font-size: 1.15rem; margin-top: 1.8rem; }
+    h1 { font-size: 2.2rem; margin-bottom: 0.3rem; }
+    h3 { font-size: 1.1rem; margin-top: 1.6rem; color: var(--text); }
     p, li, label, span, div { font-family: 'Inter', -apple-system, sans-serif; }
-    p, li { color: #3c4a56; line-height: 1.6; }
+    p, li { color: var(--text-dim); line-height: 1.6; }
+    [data-testid="stCaptionContainer"] { color: var(--text-dim) !important; }
 
-    /* Metrics: plain numbers with a thin top rule, no card/gradient box --
-       the restrained "stat in a research paper" look rather than a KPI
-       tile from a product dashboard. */
+    /* KPI tiles: dark card, rounded corners, accent left-border + glow --
+       the "product dashboard" stat tile instead of a bare number. */
     div[data-testid="stMetric"] {
-        background: transparent;
-        border: none;
-        border-top: 2px solid #44607a;
-        border-radius: 0;
-        padding: 0.6rem 0 0.2rem 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--accent);
+        border-radius: 10px;
+        padding: 0.9rem 1.1rem;
+        box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.03), 0 4px 14px rgba(0,0,0,0.25);
     }
     div[data-testid="stMetricValue"] {
-        color: #1b2733;
-        font-family: 'Source Serif 4', Georgia, serif;
-        font-weight: 600;
+        color: var(--text);
+        font-family: 'Manrope', sans-serif;
+        font-weight: 700;
     }
     div[data-testid="stMetricLabel"] {
-        color: #67747f;
-        font-weight: 500;
-        font-size: 0.8rem;
+        color: var(--text-dim);
+        font-weight: 600;
+        font-size: 0.78rem;
         text-transform: uppercase;
-        letter-spacing: 0.04em;
+        letter-spacing: 0.05em;
     }
 
-    /* Tabs: a simple underline, like a journal section nav -- no filled
-       pill backgrounds, no color-block "active" state. */
+    /* Tabs: filled pill for the active tab in the accent color -- a clear
+       "you are here" state, like a real product's nav rather than a
+       journal section list. */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 28px;
-        border-bottom: 1px solid #e2e5e8;
+        gap: 6px;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 2px;
     }
     .stTabs [data-baseweb="tab"] {
         background-color: transparent;
-        border-radius: 0;
-        padding: 8px 2px;
-        color: #67747f;
-        font-weight: 500;
+        border-radius: 8px 8px 0 0;
+        padding: 10px 18px;
+        color: var(--text-dim);
+        font-weight: 600;
     }
     .stTabs [aria-selected="true"] {
-        background-color: transparent !important;
-        border-bottom: 2px solid #44607a !important;
+        background-color: var(--accent-soft) !important;
+        color: var(--accent) !important;
     }
-    .stTabs [aria-selected="true"] p { color: #1b2733 !important; font-weight: 600; }
+    .stTabs [aria-selected="true"] p { color: var(--accent) !important; font-weight: 700; }
 
-    section[data-testid="stSidebar"] { background-color: #fafbfb; border-right: 1px solid #e8eaec; }
-    section[data-testid="stSidebar"] * { color: #3c4a56; }
-    section[data-testid="stSidebar"] h3 { font-size: 1rem; }
+    section[data-testid="stSidebar"] { background-color: var(--surface); border-right: 1px solid var(--border); }
+    section[data-testid="stSidebar"] * { color: var(--text-dim); }
+    section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] h3 { color: var(--text); font-size: 1rem; }
 
-    div[data-testid="stExpander"] { border: 1px solid #e2e5e8; border-radius: 4px; }
-    hr { border-color: #e8eaec; }
+    div[data-testid="stExpander"] { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+    div[data-testid="stDataFrame"] { border: 1px solid var(--border); border-radius: 8px; }
+    hr { border-color: var(--border); }
+
+    .stButton button[kind="primary"] {
+        background-color: var(--accent);
+        color: #06201c;
+        border: none;
+        font-weight: 700;
+        border-radius: 8px;
+    }
+    .stButton button[kind="primary"]:hover { background-color: #5eead4; color: #06201c; }
+
+    div[data-testid="stAlert"] { border-radius: 10px; border: 1px solid var(--border); }
     </style>
     """,
     unsafe_allow_html=True,
@@ -382,7 +405,9 @@ pipeline running on actual satellite data.
         """
         digraph {
             rankdir=LR;
-            node [shape=box, style="rounded,filled", fillcolor="#f5f6f7", color="#44607a", fontname="Helvetica"];
+            bgcolor="transparent";
+            node [shape=box, style="rounded,filled", fillcolor="#171f2a", color="#2dd4bf", fontcolor="#e6edf3", fontname="Helvetica"];
+            edge [color="#8b98a5"];
             SWOT [label="SWOT SSH"]; OSCAR [label="OSCAR u,v"];
             clean [label="Clean + regrid"];
             topo [label="Alpha complex\\n+ persistent H1"];

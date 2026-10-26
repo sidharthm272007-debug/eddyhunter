@@ -1,11 +1,7 @@
-# Clean, restrained academic palette -- a muted slate accent instead of a
-# bright "product" blue, neutral grays instead of tinted panels, dark
-# slate text instead of pure black. Pinned explicitly so the app looks the
-# same everywhere rather than following the visitor's OS theme.
 [theme]
-base = "light"
-primaryColor = "#44607a"
-backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#f5f6f7"
-textColor = "#24313d"
+base = "dark"
+primaryColor = "#2dd4bf"
+backgroundColor = "#0b0f14"
+secondaryBackgroundColor = "#121821"
+textColor = "#e6edf3"
 font = "sans serif"
