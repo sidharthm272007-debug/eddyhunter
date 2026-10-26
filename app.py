@@ -369,15 +369,18 @@ with tab_overview:
         c3.metric("Mean forecast confidence", f"{report['forecast']['mean_confidence']*100:.0f}%")
         ppo_sr = report["rl"].get("procedural", {}).get("ppo", {}).get("success_rate")
         c4.metric("PPO success (procedural)", f"{ppo_sr*100:.0f}%" if ppo_sr is not None else "running…")
-        st.markdown(
-            f"""
-Running on **real SWOT L2 LR SSH Expert + OSCAR L4 currents** — {report['scene']['n_time_steps']} real
-time steps over the Arabian Sea. Real satellite data has no ground-truth answer key, so these are
-counts and the model's own confidence, not accuracy scores against a known truth — that honest
-distinction (and what *can* still be validated: physical plausibility checks, track continuity, a
-sparse SWOT SSH cross-check) is in the Evaluation tab.
-            """
+        st.caption(
+            f"Real SWOT L2 LR SSH Expert + OSCAR L4 currents — {report['scene']['n_time_steps']} real time steps, Arabian Sea."
         )
+        with st.expander("ℹ️ What these numbers mean"):
+            st.markdown(
+                """
+Real satellite data has no ground-truth answer key, so the counts above are the model's own
+confidence, not accuracy scores against a known truth — that honest distinction (and what *can*
+still be validated: physical plausibility checks, track continuity, a sparse SWOT SSH cross-check)
+is in the Evaluation tab.
+                """
+            )
         st.caption(report["scene"]["source"])
     else:
         c1.metric("Detection recall", f"{report['detection']['recall']*100:.1f}%")
@@ -385,12 +388,9 @@ sparse SWOT SSH cross-check) is in the Evaluation tab.
         c3.metric("Forecast error", f"{report['forecast']['mean_forecast_error_km']:.1f} km")
         ppo_sr = report["rl"]["procedural"]["ppo"]["success_rate"]
         c4.metric("PPO success rate", f"{ppo_sr*100:.0f}%")
-        st.markdown(
-            """
-Running on a **synthetic rotating-vortex scene** (5 eddies, 30 time steps) so every number above can
-be checked against ground truth. Switch to the real SWOT+OSCAR source in the sidebar to see this same
-pipeline running on actual satellite data.
-            """
+        st.caption(
+            "Synthetic rotating-vortex scene (5 eddies, 30 time steps), so every number above can be checked "
+            "against ground truth. Switch to the real SWOT+OSCAR source in the sidebar to see this on actual satellite data."
         )
 
     st.subheader("Pipeline")
@@ -537,9 +537,7 @@ with tab_detect:
             title=f"t={t}  ({str(ds['time'].values[t])[:10]})  —  blue=cyclonic, red=anticyclonic",
         )
         st.caption(
-            "Coastlines and country borders only — no place-name tiles, so there's no label layer to "
-            "render in any language. Dots: SSH anomaly (subsampled). Lines: surface velocity direction. "
-            "Filled outlines: validated eddy polygons. Solid trails: accumulated tracks."
+            "Dots: SSH anomaly. Lines: surface velocity. Filled outlines: validated eddies. Trails: tracks over time."
         )
     else:
         fig.add_trace(go.Heatmap(
@@ -752,17 +750,18 @@ with tab_rl:
 # ----------------------------------------------------------------------------
 with tab_eval:
     if source == "real":
-        st.subheader("Full evaluation report (real data — no ground truth available)")
-        st.markdown(
-            """
-Real satellite data has no answer key, so nothing here is an accuracy score against a known truth.
+        st.subheader("Full evaluation report (real data)")
+        st.caption("Real satellite data has no answer key — these are plausibility and cross-check scores, not an accuracy score against a known truth.")
+        with st.expander("ℹ️ How this is validated"):
+            st.markdown(
+                """
 What *is* checked, honestly: physical plausibility (does velocity-derived vorticity sign agree with
 the rotation label; is circulation strong enough to not be noise; is the eddy's own core actually
 enclosed by its ring polygon), track continuity across real SWOT revisits, and — wherever the sparse
 SWOT swath happens to cross a detected eddy — an independent cross-check against real SWOT SSH sign,
 which is non-gating since coverage is only ~5% of the domain by construction.
-            """
-        )
+                """
+            )
     else:
         st.subheader("Full evaluation report (synthetic ground truth)")
 
@@ -784,10 +783,22 @@ which is non-gating since coverage is only ~5% of the domain by construction.
                   if k != "note" and isinstance(v, (dict, list))}
         st.markdown(f"#### {title}")
         if scalars:
-            cols = st.columns(min(4, len(scalars)))
-            for i, (k, v) in enumerate(scalars.items()):
+            # Long strings don't fit in a fixed-width metric tile and get
+            # visually cut off -- give those their own wrapping text row
+            # instead of forcing them into the KPI-tile grid.
+            tile_items = {k: v for k, v in scalars.items()
+                          if not (isinstance(v, str) and len(v) > 18)}
+            text_items = {k: v for k, v in scalars.items() if k not in tile_items}
+            if tile_items:
+                cols = st.columns(min(4, len(tile_items)))
+                for i, (k, v) in enumerate(tile_items.items()):
+                    label, val = _fmt(k, v)
+                    cols[i % len(cols)].metric(label, val)
+            for k, v in text_items.items():
                 label, val = _fmt(k, v)
-                cols[i % len(cols)].metric(label, val)
+                st.markdown(f"<div style='margin: 2px 0 10px 0;'>"
+                            f"<span style='color: var(--text-dim); font-size: 0.8rem;'>{label}</span><br>"
+                            f"<span style='font-size: 0.95rem;'>{val}</span></div>", unsafe_allow_html=True)
         for k, v in nested.items():
             if isinstance(v, dict) and all(isinstance(x, dict) for x in v.values()):
                 # two-level nesting, e.g. rl.procedural.{ppo,direct,random}

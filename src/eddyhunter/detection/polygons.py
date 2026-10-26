@@ -51,16 +51,66 @@ class Eddy:
 
 
 def _polygon_from_ring_points(lat_pts: np.ndarray, lon_pts: np.ndarray) -> Optional[Polygon]:
-    """Outer boundary of the ring point set. We use the convex hull: eddy
-    rings from a Gaussian-vortex-like SSH field are close enough to annular
-    that the convex hull is a good, robust proxy for the eddy's outer edge,
-    without depending on GEOS-version-specific concave-hull availability.
+    """Outer boundary of the ring point set, as a smooth ellipse.
+
+    Real-data ring points are noisy, so their raw convex hull is jagged and
+    pointy -- it reads as a scribble on a map, not as "an eddy." Published
+    eddy atlases (Chelton et al. 2011; Mason et al. 2014) report eddies as
+    smooth closed contours, and most downstream displays further simplify
+    those to an ellipse fit. We do the same here: fit an ellipse to the ring
+    points via PCA (principal axes = ring's major/minor spread, in local
+    meters so it's not distorted by the lat/lon aspect ratio), then rescale
+    it so its area exactly matches the raw convex hull's area. This keeps
+    every physical quantity derived from polygon area (area_km2, and the
+    mean-field sampling that uses "inside the polygon") numerically
+    consistent with before -- only the *boundary shape* becomes smooth.
     """
     pts = MultiPoint(list(zip(lon_pts, lat_pts)))
     hull = pts.convex_hull
-    if hull.geom_type != "Polygon":
+    if hull.geom_type != "Polygon" or hull.area == 0:
         return None
-    return hull
+
+    lat0, lon0 = float(np.mean(lat_pts)), float(np.mean(lon_pts))
+    x_m, y_m = latlon_to_local_xy_m(lat_pts, lon_pts, lat0, lon0)
+    xy = np.column_stack([x_m, y_m])
+    if xy.shape[0] < 3:
+        return hull
+
+    cov = np.cov(xy.T)
+    eigvals, eigvecs = np.linalg.eigh(cov)
+    eigvals = np.clip(eigvals, 1e-6, None)
+    order = np.argsort(eigvals)[::-1]
+    eigvals, eigvecs = eigvals[order], eigvecs[:, order]
+    a0, b0 = float(np.sqrt(eigvals[0])), float(np.sqrt(eigvals[1]))
+    angle = float(np.arctan2(eigvecs[1, 0], eigvecs[0, 0]))
+
+    # Convex hull's own centroid in local meters, so the ellipse is centered
+    # on the actual point cloud rather than pulled by its own hull vertices.
+    hull_x_m, hull_y_m = latlon_to_local_xy_m(
+        np.array(hull.exterior.coords.xy[1]), np.array(hull.exterior.coords.xy[0]), lat0, lon0)
+    cx, cy = float(np.mean(hull_x_m)), float(np.mean(hull_y_m))
+
+    hull_area_m2 = hull.area * (EARTH_RADIUS_M ** 2) * (np.pi / 180.0) ** 2 * np.cos(np.deg2rad(lat0))
+    # Recompute hull area directly in meters instead (robust to the above
+    # approximation): reproject hull vertices to local meters and measure.
+    hull_local = Polygon(zip(hull_x_m, hull_y_m))
+    hull_area_m2 = hull_local.area
+
+    k = np.sqrt(hull_area_m2 / (np.pi * a0 * b0)) if (a0 > 0 and b0 > 0) else 1.0
+    a, b = a0 * k, b0 * k
+
+    theta = np.linspace(0.0, 2 * np.pi, 48)
+    ex = a * np.cos(theta) * np.cos(angle) - b * np.sin(theta) * np.sin(angle)
+    ey = a * np.cos(theta) * np.sin(angle) + b * np.sin(theta) * np.cos(angle)
+    ex, ey = ex + cx, ey + cy
+
+    ell_lat = lat0 + np.rad2deg(ey / EARTH_RADIUS_M)
+    ell_lon = lon0 + np.rad2deg(ex / (EARTH_RADIUS_M * np.cos(np.deg2rad(lat0))))
+
+    ellipse = Polygon(zip(ell_lon, ell_lat))
+    if not ellipse.is_valid or ellipse.area == 0:
+        return hull
+    return ellipse
 
 
 def _polygon_area_km2(polygon_lonlat: Polygon, ref_lat: float) -> float:
