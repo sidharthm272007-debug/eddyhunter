@@ -399,11 +399,25 @@ with st.sidebar:
                 st.caption(f"Last synced: {last.strftime('%Y-%m-%d %H:%M UTC') if last is not None else 'never yet'}")
                 if st.button("🔄 Force sync now", type="primary"):
                     with st.spinner("Checking NASA Earthdata for new granules and re-running the pipeline..."):
-                        _, result = run_nasa_sync(force=True)
-                    if result.ok:
-                        st.success(result.message)
-                    else:
-                        st.warning(result.message)
+                        try:
+                            _, result = run_nasa_sync(force=True)
+                        except Exception as exc:
+                            # A sync failure (a flaky NASA Earthdata response, a
+                            # transient write conflict on the shared deployment
+                            # filesystem, etc.) must never take the whole page
+                            # down -- this button is an optional extra on top of
+                            # the validated baseline already on screen, and the
+                            # cached data stays good either way.
+                            st.error(
+                                f"Sync failed ({type(exc).__name__}) -- the data already shown above is "
+                                "unaffected. Try again in a moment, or see the deployment logs for detail."
+                            )
+                            result = None
+                    if result is not None:
+                        if result.ok:
+                            st.success(result.message)
+                        else:
+                            st.warning(result.message)
         else:
             with st.expander("🔄 Live refresh (local folders)", expanded=False):
                 st.caption(

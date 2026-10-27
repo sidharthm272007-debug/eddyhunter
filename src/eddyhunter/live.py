@@ -20,6 +20,7 @@ Called from app.py's sidebar refresh button, but usable standalone too:
 from __future__ import annotations
 
 import json
+import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -134,7 +135,20 @@ def _run_pipeline_on_dataset(ds: xr.Dataset, out: Path) -> RefreshResult:
     # zlib-compress: a long daily series is mostly far-field NaN (no OSCAR
     # coverage outside the subset bbox edges, no SWOT coverage most days),
     # which compresses roughly 2x -- 93 days was ~448MB uncompressed.
-    ds.to_netcdf(out / "real_scene_fine.nc", encoding={v: {"zlib": True, "complevel": 4} for v in ds.data_vars})
+    #
+    # Write to a sibling temp file and atomically replace the real one,
+    # rather than opening "real_scene_fine.nc" for write directly. netCDF4's
+    # HDF5 backend can refuse to open a path for writing while any other
+    # handle on that same path is still alive anywhere in this process
+    # (even a supposedly-closed one, depending on the libhdf5 build) --
+    # that showed up in production as a PermissionError out of
+    # netCDF4._ensure_nc_success with no further detail. A fresh temp path
+    # has no prior handle to collide with, and os.replace is atomic, so a
+    # reader never sees a half-written file either.
+    final_path = out / "real_scene_fine.nc"
+    tmp_path = out / "real_scene_fine.nc.tmp"
+    ds.to_netcdf(tmp_path, encoding={v: {"zlib": True, "complevel": 4} for v in ds.data_vars})
+    os.replace(tmp_path, final_path)
 
     lats, lons = ds["lat"].values, ds["lon"].values
     eddies_by_time, all_eddies = {}, []
