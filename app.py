@@ -162,8 +162,27 @@ _THEME_CSS = """
     section[data-testid="stSidebar"] { background-color: var(--surface); border-right: 1px solid var(--border); }
     section[data-testid="stSidebar"] * { color: var(--text-dim); }
     section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h2, section[data-testid="stSidebar"] h3 { color: var(--text); font-size: 1rem; }
-    div[data-testid="stExpander"] { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
-    div[data-testid="stDataFrame"] { border: 1px solid var(--border); border-radius: 8px; }
+    div[data-testid="stExpander"] {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface);
+        box-shadow: 0 6px 18px rgba(10, 50, 70, 0.05);
+    }
+    div[data-testid="stDataFrame"] {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 6px 18px rgba(10, 50, 70, 0.05);
+    }
+    /* Sidebar controls: round them to match the rest of the UI instead of
+       Streamlit's default square inputs -- a small thing, but a sharp-
+       cornered sidebar next to rounded cards everywhere else is exactly
+       the kind of inconsistency that reads as "unfinished" up close. */
+    section[data-testid="stSidebar"] div[data-baseweb="select"] > div,
+    section[data-testid="stSidebar"] .stButton button,
+    section[data-testid="stSidebar"] .stTextInput input {
+        border-radius: 9px !important;
+    }
     hr { border-color: var(--border); }
     .stButton button[kind="primary"] {
         background-color: var(--accent);
@@ -810,8 +829,19 @@ with tab_detect:
     st.subheader("Eddies detected on this date")
     st.dataframe(
         eddies_t[["eddy_id", "rotation", "centroid_lat", "centroid_lon", "area_km2",
-                  "persistence_m", "mean_speed", "mean_vorticity"]].round(4),
+                  "persistence_m", "mean_speed", "mean_vorticity"]],
         width='stretch',
+        hide_index=True,
+        column_config={
+            "eddy_id": st.column_config.TextColumn("ID"),
+            "rotation": st.column_config.TextColumn("Rotation"),
+            "centroid_lat": st.column_config.NumberColumn("Lat (°N)", format="%.4f"),
+            "centroid_lon": st.column_config.NumberColumn("Lon (°E)", format="%.4f"),
+            "area_km2": st.column_config.NumberColumn("Area (km²)", format="%.0f"),
+            "persistence_m": st.column_config.NumberColumn("Persistence (m)", format="%.0f"),
+            "mean_speed": st.column_config.NumberColumn("Mean speed (m/s)", format="%.2f"),
+            "mean_vorticity": st.column_config.NumberColumn("Vorticity (s⁻¹)", format="%.2e"),
+        },
     )
 
 
@@ -996,9 +1026,13 @@ model it yet.
         st.plotly_chart(fig, width='stretch')
 
         m1, m2, m3 = st.columns(3)
-        m1.metric("Outcome", "Reached" if info["success"] else "Missed")
-        m2.metric("Steps to resolve", info["t"])
-        m3.metric("Distance travelled", f"{info['travel_km']:.0f} km")
+        outcome_accent = "#0d9e97" if info["success"] else "#e8694a"
+        kpi_card(m1, "shield", "Reached" if info["success"] else "Missed", "Outcome",
+                  "Whether the agent closed to within the success radius.", accent=outcome_accent)
+        kpi_card(m2, "compass", info["t"], "Steps to resolve",
+                  "Simulated revisits taken before the episode ended.")
+        kpi_card(m3, "ruler", f"{info['travel_km']:.0f} km", "Distance travelled",
+                  "Total distance the agent covered this episode.")
         with st.expander("Technical details"):
             st.metric("Episode reward (RL training signal)", f"{total_reward:.1f}")
 
