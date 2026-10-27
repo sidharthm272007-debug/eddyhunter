@@ -199,6 +199,19 @@ def _run_pipeline_on_dataset(ds: xr.Dataset, out: Path) -> RefreshResult:
     )
 
 
+# Streamlit Community Cloud's free tier has a hard RAM/disk ceiling. Every
+# "Force sync now" click grows real_scene_fine.nc a little more (it is never
+# shrunk by design -- that's the whole point of merging instead of
+# replacing), and with no cap that file grew to 200MB+ over the life of this
+# deployment, which combined with the app's already-heavy dependency stack
+# (PyTorch, gudhi, scipy, ...) was enough to crash the container outright
+# ("Error running app", not a Python traceback -- an infra-level OOM/disk
+# failure). Capping the merged history to the most recent MAX_HISTORY_DAYS
+# days keeps the live file bounded forever, no matter how many times sync
+# is clicked, while still comfortably covering the validated 93-day baseline.
+MAX_HISTORY_DAYS = 120
+
+
 def _merge_time_series(old_ds: xr.Dataset, new_ds: xr.Dataset) -> xr.Dataset:
     """Concat two (time, lat, lon) real scenes and dedupe overlapping days,
     keeping the freshly-synced copy of any day both sides share (it may have
@@ -310,6 +323,9 @@ def sync_from_nasa_and_refresh(
                         "something went wrong merging the new granules; the data on screen is unchanged.",
                 n_swot_files=n_swot, n_oscar_files=n_oscar,
             )
+
+        if merged.sizes["time"] > MAX_HISTORY_DAYS:
+            merged = merged.isel(time=slice(-MAX_HISTORY_DAYS, None))
 
         result = _run_pipeline_on_dataset(merged, out)
         result.n_swot_files = n_swot

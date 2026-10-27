@@ -24,3 +24,4 @@ pandas>=2.1
 # force a clean Streamlit Cloud rebuild
 # force a clean rebuild: restore the git-committed validated baseline, stale local Force-sync state was carrying over across redeploys
 # force a clean rebuild: a Force-sync click on this container merged down to a thin live-only window (151 eddies/0 cross-checks); restore the git-committed 532-eddy validated baseline
+# force a clean rebuild: outputs/real_scene_fine.nc had grown to 200MB+ across repeated live syncs on this container, which combined with the heavy dependency stack (torch/gudhi/scipy) exceeded the free-tier RAM/disk limit and crashed the app ("Error running app"); a fresh container starts from the small committed seed file and the new history cap below keeps it from happening again
