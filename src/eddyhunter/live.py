@@ -154,7 +154,16 @@ def _run_pipeline_on_dataset(ds: xr.Dataset, out: Path) -> RefreshResult:
 
     multi = [t for t in tracks if t.length > 1]
     if multi:
-        avg_dt_hours = float(pd.Series(times).diff().dropna().dt.total_seconds().mean() / 3600.0)
+        # Median, not mean -- a merged series (seeded validated history +
+        # a fresh live NASA window) can have one large gap between the two
+        # chunks sitting among many small day-to-day gaps. A MEAN lets that
+        # one outlier dominate: e.g. 25 real ~30h gaps plus a single ~2-year
+        # gap would pull the "average" revisit cadence up to several
+        # hundred hours, silently wrong for every other eddy's forecast
+        # velocity/confidence, not just the one pair of snapshots actually
+        # spanning the gap. The median is robust to that single outlier.
+        dt_series_hours = pd.Series(times).diff().dropna().dt.total_seconds() / 3600.0
+        avg_dt_hours = float(dt_series_hours.median())
         records = build_track_b_output(multi, dt_hours=avg_dt_hours)
         track_b_to_dataframe(records).to_csv(out / "real_track_b_output.csv", index=False)
     else:
@@ -246,10 +255,25 @@ def sync_from_nasa_and_refresh(
             return RefreshResult(ok=False, message=f"Ingest of freshly-synced granules failed: {e}",
                                   n_swot_files=n_swot, n_oscar_files=n_oscar)
 
+        seed_path = out / "real_scene_seed.nc"
         if existing_path.exists():
             old_ds = xr.load_dataset(existing_path)
             merged = _merge_time_series(old_ds, new_ds)
             old_ds.close()
+        elif seed_path.exists():
+            # real_scene_fine.nc itself (the full validated 93-day scene,
+            # ~200MB) is too large to commit to git outright, so a brand
+            # new container/clone never has it -- which meant the FIRST
+            # sync on every fresh deploy fell all the way through to the
+            # `else` branch below, discarding the entire validated history
+            # and starting over from just whatever NASA Earthdata returns
+            # for `days_back` days. real_scene_seed.nc is a much smaller
+            # (~57MB, last 25 days of the validated scene) slice that IS
+            # committed, specifically so that first sync has real prior
+            # history to merge into instead of starting from zero.
+            seed_ds = xr.load_dataset(seed_path)
+            merged = _merge_time_series(seed_ds, new_ds)
+            seed_ds.close()
         else:
             merged = new_ds
 
