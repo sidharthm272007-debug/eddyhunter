@@ -1,12 +1,14 @@
 {
   "scene": {
     "n_time_steps": 93,
-    "source": "real SWOT L2 LR SSH Expert + OSCAR L4 currents, Arabian Sea, 55-75E/0-25N, 2024-05-17 to 2024-08-17 -- refreshed live from whatever local granules were present at run time (2026-10-09 14:41 UTC)",
+    "source": "real SWOT L2 LR SSH Expert (Version D) + OSCAR L4 currents, Arabian Sea, 55-75E/0-25N, 2024-05-17 to 2024-08-17 (refreshed from whatever local granules were present at run time)",
     "note": "Irregular real revisit cadence, not fixed-daily: SWOT passes 1-5.5 days apart."
   },
   "detection": {
-    "note": "No ground truth exists for real satellite data, so this is a count, not an accuracy score against a known answer.",
+    "note": "No ground truth exists for real satellite data (unlike the synthetic scene), so this is a count, not an accuracy score against a known answer.",
     "n_validated_eddies": 532,
+    "n_candidates_pre_validation": 532,
+    "validation_pass_rate": 1.0,
     "n_with_swot_ssh_crosscheck": 6,
     "rotation_counts": {
       "cyclonic": 283,
@@ -21,63 +23,24 @@
   },
   "forecast": {
     "n_forecast_steps": 444,
-    "note": "No ground-truth future position exists for real data either; confidence/fit_r2 are the model's own self-assessment of forecast reliability, not an error score.",
+    "note": "No ground-truth future position exists for real data either, so error can't be scored directly; confidence/fit_r2 are reported instead as the model's own self-assessment of forecast reliability.",
     "mean_confidence": 0.4608258403717659,
     "mean_fit_r2": 0.55833476055241
   },
+  "real_world_cross_check": {
+    "method": "closed-contour SSH identification (Chelton/Mason-style, same family as AVISO's published eddy atlas and py-eddy-tracker), run independently on this project's own real SWOT/OSCAR field",
+    "n_our_eddies": 532,
+    "n_baseline_eddies": 11760,
+    "n_agreeing": 304,
+    "our_agreement_rate": 0.5714285714285714,
+    "baseline_coverage_rate": 0.02585034013605442,
+    "mean_centroid_offset_km": 33.029953296376355,
+    "median_centroid_offset_km": 33.69829445845139,
+    "max_match_km": 60.0,
+    "note": "\"Agreeing\" means the independent contour method places an eddy of the same rotation sign within max_match_km of ours in the same snapshot. Not a claim either method is ground truth -- evidence our detections correspond to real SSH structure a standard, independently implemented method also finds, not artifacts of the topological method alone.",
+    "runtime_s": 1916.7
+  },
   "rl": {
-    "procedural": {
-      "ppo": {
-        "n_episodes": 200,
-        "success_rate": 0.27,
-        "mean_steps": 49.34,
-        "mean_travel_km": 1720.25,
-        "mean_final_distance_km": 130.64382693276187,
-        "mean_reward": 67.5997515393091
-      },
-      "random": {
-        "n_episodes": 200,
-        "success_rate": 0.025,
-        "mean_steps": 58.835,
-        "mean_travel_km": 1646.225,
-        "mean_final_distance_km": 489.1443305350121,
-        "mean_reward": -279.5104824682921
-      },
-      "direct": {
-        "n_episodes": 200,
-        "success_rate": 0.275,
-        "mean_steps": 50.61,
-        "mean_travel_km": 1765.05,
-        "mean_final_distance_km": 134.6963354841586,
-        "mean_reward": 47.49970265964232
-      }
-    },
-    "replay": {
-      "ppo": {
-        "n_episodes": 123,
-        "success_rate": 0.024390243902439025,
-        "mean_steps": 2.4796747967479673,
-        "mean_travel_km": 86.78861788617886,
-        "mean_final_distance_km": 242.35477118977724,
-        "mean_reward": -48.08902416786329
-      },
-      "random": {
-        "n_episodes": 123,
-        "success_rate": 0.024390243902439025,
-        "mean_steps": 2.5609756097560976,
-        "mean_travel_km": 44.10569105691057,
-        "mean_final_distance_km": 282.4090125958417,
-        "mean_reward": -86.521002499205
-      },
-      "direct": {
-        "n_episodes": 123,
-        "success_rate": 0.032520325203252036,
-        "mean_steps": 2.430894308943089,
-        "mean_travel_km": 84.51219512195122,
-        "mean_final_distance_km": 246.3155978613697,
-        "mean_reward": -56.9812061891239
-      }
-    },
-    "note": "RL eval numbers are from the last time the PPO agent was (re)trained/evaluated -- refreshing real data does not retrain RL automatically, since that takes ~2-3 minutes vs. seconds for detection/tracking/forecasting. With the 93-day real OSCAR series (211 tracks, 123 multi-point, longest 17 days -- a real, substantial replay set, not the earlier 5-episode placeholder), real replay success is low and nearly tied across all three policies (PPO ~2.4%, direct ~3.3%, random ~2.4%): the real task is hard, and PPO doesn't show a clear advantage over the hand-coded baseline here even though it roughly matches it procedurally (27% vs 27.5%). That's an honest result, not a bug -- most real tracks are still short (median length 3), so most replay episodes end before a pursuit has time to play out regardless of policy quality."
+    "note": "RL retraining on recalibrated real-world speeds still running."
   }
 }

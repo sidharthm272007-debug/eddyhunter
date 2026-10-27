@@ -14,3 +14,6 @@ data/oscar/*.nc
 
 # Sync bookkeeping -- regenerated at runtime, not meaningful to track.
 outputs/.last_nasa_sync
+
+# Local editable-install build metadata -- not meaningful to track.
+src/eddyhunter.egg-info/

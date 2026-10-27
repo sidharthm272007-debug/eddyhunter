@@ -128,9 +128,9 @@ _THEME_CSS = """
     div[data-testid="stMetricLabel"] {
         color: var(--text-dim);
         font-weight: 600;
-        font-size: 0.78rem;
+        font-size: 0.74rem;
         text-transform: uppercase;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.02em;
         white-space: normal !important;
         overflow: visible !important;
         text-overflow: unset !important;
@@ -406,11 +406,15 @@ with tab_overview:
     metric_box = st.container(border=True)
     c1, c2, c3, c4 = metric_box.columns(4)
     if source == "real":
-        c1.metric("Validated eddies", report["detection"]["n_validated_eddies"])
-        c2.metric("SWOT SSH cross-checks", report["detection"]["n_with_swot_ssh_crosscheck"])
-        c3.metric("Mean forecast confidence", f"{report['forecast']['mean_confidence']*100:.0f}%")
+        c1.metric("Eddies found", report["detection"]["n_validated_eddies"],
+                  help="Validated eddies detected in this run.")
+        c2.metric("Cross-checks", report["detection"]["n_with_swot_ssh_crosscheck"],
+                  help="Eddies independently confirmed where a sparse SWOT SSH pass happened to overlap them.")
+        c3.metric("Forecast trust", f"{report['forecast']['mean_confidence']*100:.0f}%",
+                  help="Mean confidence in the model's own drift forecast for the next revisit.")
         ppo_sr = report["rl"].get("procedural", {}).get("ppo", {}).get("success_rate")
-        c4.metric("PPO success (procedural)", f"{ppo_sr*100:.0f}%" if ppo_sr is not None else "running…")
+        c4.metric("PPO success", f"{ppo_sr*100:.0f}%" if ppo_sr is not None else "running…",
+                  help="Success rate of the trained navigation agent (training-distribution episodes).")
         st.caption(
             f"Real SWOT L2 LR SSH Expert + OSCAR L4 currents — {report['scene']['n_time_steps']} real time steps, Arabian Sea."
         )
@@ -425,11 +429,15 @@ is in the Evaluation tab.
             )
         st.caption(report["scene"]["source"])
     else:
-        c1.metric("Detection recall", f"{report['detection']['recall']*100:.1f}%")
-        c2.metric("Centroid error", f"{report['detection']['mean_centroid_error_km']:.1f} km")
-        c3.metric("Forecast error", f"{report['forecast']['mean_forecast_error_km']:.1f} km")
+        c1.metric("Recall", f"{report['detection']['recall']*100:.1f}%",
+                  help="Share of the ground-truth eddies this run actually detected.")
+        c2.metric("Centroid error", f"{report['detection']['mean_centroid_error_km']:.1f} km",
+                  help="Average distance between a detected eddy's center and its true center.")
+        c3.metric("Forecast error", f"{report['forecast']['mean_forecast_error_km']:.1f} km",
+                  help="Average error in the predicted next-step eddy position.")
         ppo_sr = report["rl"]["procedural"]["ppo"]["success_rate"]
-        c4.metric("PPO success rate", f"{ppo_sr*100:.0f}%")
+        c4.metric("PPO success", f"{ppo_sr*100:.0f}%",
+                  help="Success rate of the trained navigation agent.")
         st.caption(
             "Synthetic rotating-vortex scene (5 eddies, 30 time steps), so every number above can be checked "
             "against ground truth. Switch to the real SWOT+OSCAR source in the sidebar to see this on actual satellite data."
@@ -766,7 +774,7 @@ with tab_rl:
         st.plotly_chart(fig, width='stretch')
 
         m1, m2, m3 = st.columns(3)
-        m1.metric("Outcome", "Reached" if info["success"] else "Not reached")
+        m1.metric("Outcome", "Reached" if info["success"] else "Missed")
         m2.metric("Steps to resolve", info["t"])
         m3.metric("Distance travelled", f"{info['travel_km']:.0f} km")
         with st.expander("Technical details"):
