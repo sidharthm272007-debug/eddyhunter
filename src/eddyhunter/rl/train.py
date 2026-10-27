@@ -12,7 +12,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
 
 from .env import EddyChaseEnv, EddyChaseConfig, ReplayStep
-from .baselines import random_policy, direct_navigation_policy
+from .baselines import random_policy, direct_navigation_policy, pursuit_guidance_policy
 
 
 def make_env(config: EddyChaseConfig, seed: int):
@@ -43,7 +43,7 @@ def _run_episode(env: EddyChaseEnv, policy_fn, rng: Optional[np.random.Generator
     while not done:
         if policy_fn is random_policy:
             action = policy_fn(obs, rng)
-        elif policy_fn is direct_navigation_policy:
+        elif policy_fn in (direct_navigation_policy, pursuit_guidance_policy):
             action = policy_fn(obs, step_km=env.cfg.step_km)
         else:
             action, _ = policy_fn(obs)
@@ -89,13 +89,14 @@ def evaluate_all(model: PPO, config: EddyChaseConfig, n_episodes: int = 100, see
         "ppo": evaluate_policy_on_env_factory(ppo_policy, procedural_factory, n_episodes, seed),
         "random": evaluate_policy_on_env_factory(random_policy, procedural_factory, n_episodes, seed),
         "direct": evaluate_policy_on_env_factory(direct_navigation_policy, procedural_factory, n_episodes, seed),
+        "pursuit": evaluate_policy_on_env_factory(pursuit_guidance_policy, procedural_factory, n_episodes, seed),
     }
 
     if replay_sequences:
         def replay_factory_fn(seq):
             return lambda: EddyChaseEnv(config=config, mode="replay", replay_sequence=seq, seed=None)
 
-        for name, policy_fn in (("ppo", ppo_policy), ("random", random_policy), ("direct", direct_navigation_policy)):
+        for name, policy_fn in (("ppo", ppo_policy), ("random", random_policy), ("direct", direct_navigation_policy), ("pursuit", pursuit_guidance_policy)):
             per_seq = []
             for seq in replay_sequences:
                 rng = np.random.default_rng(seed)

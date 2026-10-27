@@ -40,7 +40,7 @@ AUTO_SYNC = bool(os.environ.get("EARTHDATA_USERNAME") and os.environ.get("EARTHD
 SYNC_INTERVAL_HOURS = 20  # roughly matches OSCAR's own once-a-day update cadence
 
 from eddyhunter.rl.env import EddyChaseEnv, EddyChaseConfig, ReplayStep  # noqa: E402
-from eddyhunter.rl.baselines import random_policy, direct_navigation_policy  # noqa: E402
+from eddyhunter.rl.baselines import random_policy, direct_navigation_policy, pursuit_guidance_policy  # noqa: E402
 from eddyhunter.rl.adapters import track_b_records_to_replay_steps  # noqa: E402
 from eddyhunter.forecast.predict import TrackBRecord  # noqa: E402
 
@@ -668,8 +668,30 @@ with tab_rl:
     st.subheader("Autonomous pursuit")
     st.caption(
         "Simulates an uncrewed vehicle navigating toward a forecasted eddy using this pipeline's own "
-        "predictions -- compares our trained agent against two simple baselines."
+        "predictions. Recommended policy: classical pursuit guidance, not a trained model -- see why below."
     )
+    with st.expander("ℹ️ Why pursuit guidance instead of PPO?"):
+        st.markdown(
+            """
+We trained a PPO reinforcement-learning agent for this, and it's still here for comparison -- but it
+isn't the recommended policy. On real detected tracks, PPO ties or loses to a simple non-learned
+heuristic (roughly 27% success for PPO vs. 27-33% for the classical baseline), and that's not a
+training bug: real tracks last a median of 3 steps before the satellite loses the eddy again, which is
+too short a horizon for anything reinforcement learning is actually good at. It collapses to a single
+aim-and-go decision, which classical guidance solves exactly, with no training, no model drift, and a
+fully explainable "why did it pick that heading."
+
+**Pursuit guidance** is a lead-pursuit controller: instead of aiming at the eddy's forecast position as
+of right now (which always trails a moving target), it aims one step ahead using the eddy's own
+estimated drift velocity -- the same idea ships (naval and missile) guidance systems have used for
+decades, applied here with this pipeline's own forecast as the target estimate.
+
+Reinforcement learning would genuinely earn its place on a harder version of this problem: routing a
+vessel across *several* forecasted eddies at once under a fuel/time budget, deciding which to chase and
+when to wait for a fresher forecast. That's a real long-horizon decision problem -- this project doesn't
+model it yet.
+            """
+        )
 
     long_tracks = sorted(tracks_df.track_id.unique().tolist())
     track_lengths = tracks_df.groupby("track_id").size()
@@ -683,15 +705,25 @@ with tab_rl:
 
     colA, colB = st.columns([1, 1])
     with colA:
-        policy_name = st.selectbox("Policy", ["PPO (trained)", "Direct navigation (baseline)", "Random (baseline)"])
+        policy_name = st.selectbox("Policy", [
+            "Pursuit guidance (recommended)", "PPO (experimental, for comparison)",
+            "Direct navigation (simple heuristic)", "Random (baseline)",
+        ])
     with colB:
         run_btn = st.button("▶ Run episode", type="primary")
+    if policy_name.startswith("Pursuit"):
+        st.caption(
+            "A classical lead-pursuit guidance law, not a trained model -- see \u2139\ufe0f above for why "
+            "this replaces PPO as the recommended policy here."
+        )
 
-    def get_policy(name):
+    def get_policy(name, step_km):
+        if name.startswith("Pursuit"):
+            return lambda obs: pursuit_guidance_policy(obs, step_km=step_km)
         if name.startswith("PPO"):
             return lambda obs: model.predict(obs, deterministic=True)[0]
         if name.startswith("Direct"):
-            return lambda obs: direct_navigation_policy(obs)
+            return lambda obs: direct_navigation_policy(obs, step_km=step_km)
         rng = np.random.default_rng()
         return lambda obs: random_policy(obs, rng)
 
@@ -729,7 +761,7 @@ with tab_rl:
         else:
             env = EddyChaseEnv(config=cfg, mode="procedural", seed=np.random.randint(0, 1_000_000))
 
-        policy = get_policy(policy_name)
+        policy = get_policy(policy_name, cfg.step_km)
         obs, info = env.reset()
         agent_path = [env.agent_xy.copy()]
         eddy_path = [env.eddy_xy.copy()]
@@ -804,6 +836,11 @@ with tab_rl:
 
     st.divider()
     st.subheader("How much does the trained agent actually help?")
+    st.caption(
+        "From the last offline evaluation run -- doesn't yet include the newer pursuit-guidance policy "
+        "above (that one's evaluated live each time you click **Run episode**). PPO ties or loses to the "
+        "existing simple heuristic here, which is exactly why pursuit guidance is now the default."
+    )
     rl = report["rl"]
     for scope_name, scope_key in [("On training-distribution eddies", "procedural"), ("On real detected tracks", "replay")]:
         if scope_key not in rl:
