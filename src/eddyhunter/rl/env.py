@@ -70,6 +70,15 @@ class EddyChaseConfig:
     # speed so pursuit is winnable on the typical case while still being a
     # real challenge against the faster tail.
     arena_half_km: float = 250.0
+    # Default (None): agent starts uniformly anywhere in the arena -- fine
+    # for PPO training, where the policy needs to generalize across every
+    # possible relative position. For a *demo* this is actively misleading:
+    # the agent can spawn 350 km from the eddy with no steps left to close
+    # that gap, which has nothing to do with whether the guidance policy is
+    # any good and makes identical runs look wildly inconsistent. Set this
+    # (app.py's live "Run episode" does) to bound the agent's start to a
+    # realistic patrol radius around the eddy's own position instead.
+    agent_start_radius_km: Optional[float] = None
     step_km: float = 35.0
     max_steps: int = 60
     success_radius_km: float = 15.0
@@ -142,7 +151,6 @@ class EddyChaseEnv(gym.Env):
         self._travel_km = 0.0
 
         half = self.cfg.arena_half_km
-        self.agent_xy = self._rng.uniform(-half, half, size=2)
 
         if self.mode == "replay" and self.replay_sequence:
             r0 = self.replay_sequence[0]
@@ -159,6 +167,13 @@ class EddyChaseEnv(gym.Env):
             self.eddy_pred_xy = None
             self.persistence_norm = self._rng.uniform(*self.cfg.persistence_norm_range)
             self.confidence = self._rng.uniform(*self.cfg.confidence_range)
+
+        if self.cfg.agent_start_radius_km is not None:
+            r = self.cfg.agent_start_radius_km
+            offset = self._rng.uniform(-r, r, size=2)
+            self.agent_xy = np.clip(self.eddy_xy + offset, -half, half)
+        else:
+            self.agent_xy = self._rng.uniform(-half, half, size=2)
 
         return self._obs(), {}
 

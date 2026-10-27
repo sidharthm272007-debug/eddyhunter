@@ -40,7 +40,7 @@ AUTO_SYNC = bool(os.environ.get("EARTHDATA_USERNAME") and os.environ.get("EARTHD
 SYNC_INTERVAL_HOURS = 20  # roughly matches OSCAR's own once-a-day update cadence
 
 from eddyhunter.rl.env import EddyChaseEnv, EddyChaseConfig, ReplayStep  # noqa: E402
-from eddyhunter.rl.baselines import random_policy, direct_navigation_policy, pursuit_guidance_policy  # noqa: E402
+from eddyhunter.rl.baselines import random_policy, pursuit_guidance_policy  # noqa: E402
 from eddyhunter.rl.adapters import track_b_records_to_replay_steps  # noqa: E402
 from eddyhunter.forecast.predict import TrackBRecord  # noqa: E402
 
@@ -693,10 +693,11 @@ too short a horizon for anything reinforcement learning is actually good at. It 
 aim-and-go decision, which classical guidance solves exactly, with no training, no model drift, and a
 fully explainable "why did it pick that heading."
 
-**Pursuit guidance** is a lead-pursuit controller: instead of aiming at the eddy's forecast position as
-of right now (which always trails a moving target), it aims one step ahead using the eddy's own
-estimated drift velocity -- the same idea ships (naval and missile) guidance systems have used for
-decades, applied here with this pipeline's own forecast as the target estimate.
+**Pursuit guidance** aims directly at this pipeline's own forecast position for the eddy, recomputed
+fresh each step as new tracking data comes in. (We tried adding a "lead" on top of that forecast, the
+classic pure-pursuit-vs-intercept trick -- it made no measurable difference here, because the forecast
+point already is a forward-looking estimate, not the eddy's raw current position, so there's nothing
+left to lead. We tested that claim rather than assuming it, and simplified once it didn't hold up.)
 
 Reinforcement learning would genuinely earn its place on a harder version of this problem: routing a
 vessel across *several* forecasted eddies at once under a fuel/time budget, deciding which to chase and
@@ -705,28 +706,38 @@ model it yet.
             """
         )
 
-    long_tracks = sorted(tracks_df.track_id.unique().tolist())
     track_lengths = tracks_df.groupby("track_id").size()
     # Real tracks only run 5 time steps total (max observed length 3), vs.
     # the synthetic scene's 30 -- a fixed ">=6" threshold would silently
     # hide every real track, so the bar scales with what's actually there.
     min_len = 2 if source == "real" else 6
-    usable = [tid for tid in long_tracks if track_lengths[tid] >= min_len]
+    # Longest first: a 2-point track resolves (or fails) in a single step no
+    # matter which policy drives it, which used to be *always* what the demo
+    # replayed (it was hardcoded to the first track id, alphabetically) --
+    # that made every policy look broken, not just a weak one. Defaulting to
+    # the longest available track gives the agent room to actually pursue.
+    usable = track_lengths[track_lengths >= min_len].sort_values(ascending=False).index.tolist()
 
     mode = st.radio("Episode source", ["Real detected track (replay)", "Procedural (random eddy)"], horizontal=True)
+
+    track_id = None
+    if mode.startswith("Real") and usable:
+        track_id = st.selectbox(
+            "Real track to replay", usable,
+            format_func=lambda tid: f"{tid} ({track_lengths[tid]} tracked revisits)",
+        )
 
     colA, colB = st.columns([1, 1])
     with colA:
         policy_name = st.selectbox("Policy", [
-            "Pursuit guidance (recommended)", "PPO (experimental, for comparison)",
-            "Direct navigation (simple heuristic)", "Random (baseline)",
+            "Pursuit guidance (recommended)", "PPO (experimental, for comparison)", "Random (baseline)",
         ])
     with colB:
         run_btn = st.button("▶ Run episode", type="primary")
     if policy_name.startswith("Pursuit"):
         st.caption(
-            "A classical lead-pursuit guidance law, not a trained model -- see \u2139\ufe0f above for why "
-            "this replaces PPO as the recommended policy here."
+            "A classical guidance law -- aims at this pipeline's own forecast position each step, not a "
+            "trained model. See \u2139\ufe0f above for why this replaces PPO as the recommended policy here."
         )
 
     def get_policy(name, step_km):
@@ -734,8 +745,6 @@ model it yet.
             return lambda obs: pursuit_guidance_policy(obs, step_km=step_km)
         if name.startswith("PPO"):
             return lambda obs: model.predict(obs, deterministic=True)[0]
-        if name.startswith("Direct"):
-            return lambda obs: direct_navigation_policy(obs, step_km=step_km)
         rng = np.random.default_rng()
         return lambda obs: random_policy(obs, rng)
 
@@ -762,12 +771,17 @@ model it yet.
         # current real-world-calibrated defaults. Running either policy
         # through the other's scale would be a meaningless comparison, so
         # the episode config has to track which policy is actually loaded.
-        cfg = EddyChaseConfig(max_steps=40) if source == "real" else EddyChaseConfig(
+        # agent_start_radius_km bounds the agent's starting distance from the
+        # eddy to something a patrol vessel in the area could plausibly close
+        # within the steps actually available -- without this, reset() placed
+        # the agent uniformly anywhere in the whole arena (up to ~350 km away),
+        # so whether an episode succeeded was mostly down to how far away the
+        # agent happened to spawn, not the policy's quality.
+        cfg = EddyChaseConfig(max_steps=40, agent_start_radius_km=80.0) if source == "real" else EddyChaseConfig(
             arena_half_km=150.0, step_km=6.0, max_steps=40, success_radius_km=10.0,
-            eddy_speed_kmstep_range=(0.0, 3.0), eddy_wobble_kmstep=0.4,
+            eddy_speed_kmstep_range=(0.0, 3.0), eddy_wobble_kmstep=0.4, agent_start_radius_km=50.0,
         )
-        if mode.startswith("Real") and usable:
-            track_id = usable[0] if "track_choice" not in st.session_state else st.session_state["track_choice"]
+        if mode.startswith("Real") and track_id is not None:
             seq = build_replay_sequence(track_id)
             env = EddyChaseEnv(config=cfg, mode="replay", replay_sequence=seq)
         else:

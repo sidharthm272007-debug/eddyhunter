@@ -52,18 +52,23 @@ def direct_navigation_policy(obs: np.ndarray, step_km: float) -> int:
 
 
 def pursuit_guidance_policy(obs: np.ndarray, step_km: float) -> int:
-    """Lead pursuit: aim one step ahead of the current forecast, using the
-    eddy's own estimated drift velocity (obs[6:8]), instead of chasing where
-    it already was. This is the standard fix for pure pursuit's classic
-    failure mode -- always aiming at the target's *current* spot means you
-    perpetually trail a moving target instead of intercepting it. This is
-    the policy actually recommended for single-eddy pursuit in this project
-    -- see the module docstring for why it replaces PPO here.
+    """Aim at this pipeline's own forecast position for the eddy (obs[4:6]),
+    recomputed fresh every step as new positions come in.
+
+    An earlier version of this function tried to "lead" past that forecast
+    point using the eddy's raw drift velocity (obs[6:8]), on the standard
+    pure-pursuit-vs-lead-pursuit reasoning. Tested side by side against
+    plain pursuit on the three longest real tracks with the start position
+    held fixed (so it's an apples-to-apples comparison, not an artifact of
+    a different random start each run): leading made no measurable
+    difference, because obs[4:6] already *is* this project's forecast
+    model's best estimate of where the eddy will be next -- it's not the
+    eddy's raw current position, so adding drift on top of it doesn't lead
+    the target further, it just adds noise on top of an already-forward-
+    looking number. Kept as its own named function (not merged into
+    `direct_navigation_policy`) because it's the one this project
+    recommends and documents as such -- but the logic is intentionally the
+    simple, validated version, not the fancier one that didn't earn its
+    keep.
     """
-    agent_xy = obs[0:2]
-    pred_xy = obs[4:6]
-    vel_xy = obs[6:8]
-    if not np.all(np.isfinite(vel_xy)):
-        return _best_action_toward(agent_xy, pred_xy, step_km)
-    lead_xy = pred_xy + vel_xy  # one step of eddy drift ahead of the forecast point
-    return _best_action_toward(agent_xy, lead_xy, step_km)
+    return _best_action_toward(obs[0:2], obs[4:6], step_km)
