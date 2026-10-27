@@ -270,8 +270,10 @@ def sync_from_nasa_and_refresh(
                                   n_swot_files=n_swot, n_oscar_files=n_oscar)
 
         seed_path = out / "real_scene_seed.nc"
+        prior_time_count = 0
         if existing_path.exists():
             old_ds = xr.load_dataset(existing_path)
+            prior_time_count = old_ds.sizes["time"]
             merged = _merge_time_series(old_ds, new_ds)
             old_ds.close()
         elif seed_path.exists():
@@ -286,10 +288,28 @@ def sync_from_nasa_and_refresh(
             # committed, specifically so that first sync has real prior
             # history to merge into instead of starting from zero.
             seed_ds = xr.load_dataset(seed_path)
+            prior_time_count = seed_ds.sizes["time"]
             merged = _merge_time_series(seed_ds, new_ds)
             seed_ds.close()
         else:
             merged = new_ds
+
+        # Safety net: a live refresh must only ever grow the record (or hold
+        # it steady), never shrink it. If the merge comes back with fewer
+        # days than what we merged it from -- a grid-mismatch edge case in
+        # the concat, a seed/existing file that failed to load fully, a
+        # dedup bug, anything -- refuse to write it over good history. This
+        # is what actually prevents a bad sync from quietly replacing the
+        # validated baseline with a thin live-only window, regardless of
+        # which of the above causes it.
+        if merged.sizes["time"] < prior_time_count:
+            return RefreshResult(
+                ok=False,
+                message=f"Sync returned fewer days ({merged.sizes['time']}) than the existing history "
+                        f"already has ({prior_time_count}) -- refusing to overwrite it. This usually means "
+                        "something went wrong merging the new granules; the data on screen is unchanged.",
+                n_swot_files=n_swot, n_oscar_files=n_oscar,
+            )
 
         result = _run_pipeline_on_dataset(merged, out)
         result.n_swot_files = n_swot
