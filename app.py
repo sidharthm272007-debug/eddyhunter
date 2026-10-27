@@ -174,6 +174,17 @@ _THEME_CSS = """
     }
     .stButton button[kind="primary"]:hover { background-color: #0c8c86; color: #ffffff; }
     div[data-testid="stAlert"] { border-radius: 10px; border: 1px solid var(--border); }
+    /* Give the Plotly map/grid panel the same elevated-card treatment as
+       everything else -- a flat chart floating on the page background is
+       one of the clearest "academic figure" tells; a bordered, shadowed,
+       rounded panel reads as a product surface instead. */
+    div[data-testid="stPlotlyChart"] {
+        border-radius: 18px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        box-shadow: 0 14px 34px rgba(10, 50, 70, 0.10);
+        background: var(--surface);
+    }
     </style>
 """
 
@@ -545,20 +556,44 @@ with tab_detect:
             poly = shapely_wkt.loads(row.polygon_wkt)
             xs, ys = poly.exterior.coords.xy
             c = colors.get(row.rotation, "#5b7685")
+            # Soft glow underlay -- a wider, translucent duplicate of the
+            # outline sitting behind the crisp one, so each eddy "pops" off
+            # the basemap the way a highlighted zone does, instead of
+            # reading as a thin lab-plot outline.
+            fig.add_trace(go.Scattergeo(
+                lat=list(ys), lon=list(xs), mode="lines",
+                line=dict(color=c, width=9), opacity=0.16,
+                showlegend=False, hoverinfo="skip",
+            ))
             fig.add_trace(go.Scattergeo(
                 lat=list(ys), lon=list(xs), mode="lines", fill="toself",
-                line=dict(color=c, width=2),
+                line=dict(color=c, width=2.5),
                 fillcolor=fills.get(row.rotation, "rgba(91,118,133,0.15)"),
                 name=row.rotation, showlegend=False,
                 hovertext=eddy_hover(row),
                 hoverinfo="text",
             ))
-            # A spin-direction glyph at the centroid reads instantly, instead of
-            # relying on the viewer to remember which color means which rotation --
-            # also hoverable, so clicking the glyph itself gives the same detail.
+            # Centroid badge: a solid colored chip with a white rotation
+            # glyph, sized by the eddy's own footprint -- reads at a glance
+            # like a map-pin icon instead of a bare text character, and the
+            # size now carries real information (bigger chip = bigger eddy)
+            # rather than being purely decorative.
+            badge_size = float(np.clip(12 + np.sqrt(max(row.area_km2, 0)) / 10, 14, 36))
+            fig.add_trace(go.Scattergeo(
+                lat=[row.centroid_lat], lon=[row.centroid_lon], mode="markers",
+                marker=dict(size=badge_size + 10, color=c, opacity=0.18),
+                showlegend=False, hoverinfo="skip",
+            ))
+            fig.add_trace(go.Scattergeo(
+                lat=[row.centroid_lat], lon=[row.centroid_lon], mode="markers",
+                marker=dict(size=badge_size, color=c, opacity=0.95,
+                             line=dict(color="#ffffff", width=2)),
+                showlegend=False, hovertext=eddy_hover(row), hoverinfo="text",
+            ))
             fig.add_trace(go.Scattergeo(
                 lat=[row.centroid_lat], lon=[row.centroid_lon], mode="text",
-                text=[spin.get(row.rotation, "")], textfont=dict(size=20, color=c),
+                text=[spin.get(row.rotation, "")],
+                textfont=dict(size=max(12, badge_size * 0.5), color="#ffffff"),
                 showlegend=False, hovertext=eddy_hover(row), hoverinfo="text",
             ))
 
@@ -589,12 +624,15 @@ with tab_detect:
         fig.update_layout(
             geo=dict(
                 projection_type="mercator",
-                lataxis=dict(range=[lat_min - lat_pad, lat_max + lat_pad]),
-                lonaxis=dict(range=[lon_min - lon_pad, lon_max + lon_pad]),
-                showland=True, landcolor="#eef2f0",
-                showocean=True, oceancolor="#dcedf7",
+                resolution=50,
+                lataxis=dict(range=[lat_min - lat_pad, lat_max + lat_pad],
+                              showgrid=True, gridcolor="rgba(13,158,151,0.14)", gridwidth=1),
+                lonaxis=dict(range=[lon_min - lon_pad, lon_max + lon_pad],
+                              showgrid=True, gridcolor="rgba(13,158,151,0.14)", gridwidth=1),
+                showland=True, landcolor="#eef3ea",
+                showocean=True, oceancolor="#d8edf6",
                 showcountries=True, countrycolor="#a9c2d4",
-                showcoastlines=True, coastlinecolor="#7b9cb3",
+                showcoastlines=True, coastlinecolor="#5b8aa3", coastlinewidth=1.2,
                 showlakes=False, showrivers=False,
                 bgcolor="#ffffff",
             ),
@@ -627,15 +665,28 @@ with tab_detect:
             xs, ys = poly.exterior.coords.xy
             c = colors.get(row.rotation, "#5b7685")
             fig.add_trace(go.Scatter(
+                x=list(xs), y=list(ys), mode="lines",
+                line=dict(color=c, width=7), opacity=0.16,
+                showlegend=False, hoverinfo="skip",
+            ))
+            fig.add_trace(go.Scatter(
                 x=list(xs), y=list(ys), mode="lines", fill="toself",
-                line=dict(color=c, width=2),
+                line=dict(color=c, width=2.5),
                 fillcolor=fills.get(row.rotation, "rgba(91,118,133,0.15)"), name=row.rotation,
                 showlegend=False,
                 hovertext=eddy_hover(row), hoverinfo="text",
             ))
+            badge_size = float(np.clip(11 + np.sqrt(max(row.area_km2, 0)) / 11, 13, 32))
+            fig.add_trace(go.Scatter(
+                x=[row.centroid_lon], y=[row.centroid_lat], mode="markers",
+                marker=dict(size=badge_size, color=c, opacity=0.95,
+                             line=dict(color="#ffffff", width=2)),
+                showlegend=False, hovertext=eddy_hover(row), hoverinfo="text",
+            ))
             fig.add_trace(go.Scatter(
                 x=[row.centroid_lon], y=[row.centroid_lat], mode="text",
-                text=[spin.get(row.rotation, "")], textfont=dict(size=18, color=c),
+                text=[spin.get(row.rotation, "")],
+                textfont=dict(size=max(11, badge_size * 0.5), color="#ffffff"),
                 showlegend=False, hovertext=eddy_hover(row), hoverinfo="text",
             ))
 
