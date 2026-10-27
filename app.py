@@ -247,6 +247,31 @@ _THEME_CSS = """
         color: var(--text-dim);
         line-height: 1.4;
     }
+    .eh-stat {
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        height: 100%;
+        box-sizing: border-box;
+    }
+    .eh-stat-value {
+        font-family: 'Manrope', sans-serif;
+        font-weight: 800;
+        font-size: 21px;
+        color: var(--text);
+        line-height: 1.2;
+    }
+    .eh-stat-label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+    }
     </style>
 """
 
@@ -1115,12 +1140,32 @@ which is non-gating since coverage is only ~5% of the domain by construction.
         )
 
     def _fmt(key, val):
-        label = key.replace("_", " ").replace("n ", "# ").strip().capitalize()
+        # A bare key.replace("n ", "# ") (the earlier version of this)
+        # rewrites ANY "n " substring, not just a leading "n_" count
+        # prefix -- "mean_confidence" silently became "Mea# confidence"
+        # on screen. Only collapse a genuine "n_" prefix to "#".
+        words = key.split("_")
+        label = ("# " + " ".join(words[1:])) if words[0] == "n" else " ".join(words)
+        label = label.strip().capitalize()
         if isinstance(val, bool):
             return label, "Yes" if val else "No"
         if isinstance(val, float):
             return label, f"{val:,.3f}" if abs(val) < 10 else f"{val:,.1f}"
         return label, val
+
+    def stat_tile(col, label: str, value) -> None:
+        # Same card language as the Overview/PPO tiles (.eh-kpi), minus the
+        # icon chip -- this section's fields come straight out of the
+        # report JSON, so there's no fixed, known set to assign icons to.
+        col.markdown(
+            f"""
+            <div class="eh-stat">
+                <div class="eh-stat-value">{value}</div>
+                <div class="eh-stat-label">{label}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     SECTION_TAKEAWAYS = {
         "scene": "What data this run covers.",
@@ -1155,7 +1200,7 @@ which is non-gating since coverage is only ~5% of the domain by construction.
                 cols = card.columns(min(4, len(tile_items)))
                 for i, (k, v) in enumerate(tile_items.items()):
                     label, val = _fmt(k, v)
-                    cols[i % len(cols)].metric(label, val)
+                    stat_tile(cols[i % len(cols)], label, val)
             for k, v in text_items.items():
                 label, val = _fmt(k, v)
                 card.markdown(f"<div style='margin: 2px 0 10px 0;'>"
