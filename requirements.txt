@@ -20,3 +20,5 @@ pandas>=2.1
 # cross-check (src/eddyhunter/eval/{baseline_contour,crosscheck}.py); run
 # `pip install contourpy` locally before re-running that script. Left commented
 # out here on purpose so Streamlit Cloud never installs it.
+
+# force a clean Streamlit Cloud rebuild
