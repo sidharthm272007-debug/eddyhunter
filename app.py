@@ -185,6 +185,49 @@ _THEME_CSS = """
         box-shadow: 0 14px 34px rgba(10, 50, 70, 0.10);
         background: var(--surface);
     }
+    /* Hand-built KPI card: icon chip, big number, label, one-line caption.
+       Replaces st.metric for the Overview tiles -- st.metric's truncation
+       is JS-driven (CSS alone can't fix it, confirmed by testing) and the
+       colored-left-border metric style reads as a generic dashboard
+       template rather than a considered product UI. */
+    .eh-kpi {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 18px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        height: 100%;
+        box-sizing: border-box;
+    }
+    .eh-kpi-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .eh-kpi-value {
+        font-family: 'Manrope', sans-serif;
+        font-weight: 800;
+        font-size: 28px;
+        color: var(--text);
+        line-height: 1.1;
+    }
+    .eh-kpi-label {
+        font-size: 11.5px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+    }
+    .eh-kpi-caption {
+        font-size: 12.5px;
+        color: var(--text-dim);
+        line-height: 1.4;
+    }
     </style>
 """
 
@@ -406,6 +449,55 @@ if source == "real" and not (OUT / "real_scene_fine.nc").exists():
 ds, eddies_df, tracks_df, track_b_df, report = load_outputs(source)
 model = load_ppo_model(source)
 
+_KPI_ICONS = {
+    "wave": (
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        '<path d="M3 12c2 3 4 3 6 0s4-3 6 0 4 3 6 0"/></svg>'
+    ),
+    "shield": (
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        '<path d="M12 3l7 3v6c0 5-3 8-7 9-4-1-7-4-7-9V6l7-3z"/><path d="m9 12 2 2 4-4"/></svg>'
+    ),
+    "target": (
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/></svg>'
+    ),
+    "compass": (
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        '<circle cx="12" cy="12" r="9"/><path d="m14.5 9.5-2 5-5 2 2-5 5-2z"/></svg>'
+    ),
+    "ruler": (
+        '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+        'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        '<rect x="3" y="8" width="18" height="8" rx="1.5"/><path d="M7 8v3M11 8v3M15 8v3"/></svg>'
+    ),
+}
+
+
+def kpi_card(col, icon: str, value: str, label: str, caption: str, accent: str = "#0d9e97", help_text: str = ""):
+    """A hand-built stat tile (icon chip, big number, label, caption) in
+    place of st.metric -- see the .eh-kpi CSS above for why. `help_text`
+    becomes a native title-attribute tooltip, the same info a user would
+    have gotten from st.metric's (?) bubble, without reintroducing a
+    Streamlit metric widget.
+    """
+    col.markdown(
+        f"""
+        <div class="eh-kpi" title="{help_text}">
+            <div class="eh-kpi-icon" style="color:{accent}; background:{accent}1a;">{_KPI_ICONS[icon]}</div>
+            <div class="eh-kpi-value">{value}</div>
+            <div class="eh-kpi-label">{label}</div>
+            <div class="eh-kpi-caption">{caption}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 tab_overview, tab_detect, tab_rl, tab_eval = st.tabs(
     ["Overview", "Detection & Tracking", "PPO Navigation", "Evaluation Report"]
 )
@@ -414,18 +506,17 @@ tab_overview, tab_detect, tab_rl, tab_eval = st.tabs(
 # Overview
 # ----------------------------------------------------------------------------
 with tab_overview:
-    metric_box = st.container(border=True)
-    c1, c2, c3, c4 = metric_box.columns(4)
+    c1, c2, c3, c4 = st.columns(4)
     if source == "real":
-        c1.metric("Eddies found", report["detection"]["n_validated_eddies"],
-                  help="Validated eddies detected in this run.")
-        c2.metric("Cross-checks", report["detection"]["n_with_swot_ssh_crosscheck"],
-                  help="Eddies independently confirmed where a sparse SWOT SSH pass happened to overlap them.")
-        c3.metric("Forecast trust", f"{report['forecast']['mean_confidence']*100:.0f}%",
-                  help="Mean confidence in the model's own drift forecast for the next revisit.")
+        kpi_card(c1, "wave", report["detection"]["n_validated_eddies"], "Eddies found",
+                  "Validated eddies detected in this run.")
+        kpi_card(c2, "shield", report["detection"]["n_with_swot_ssh_crosscheck"], "Cross-checks",
+                  "Independently confirmed by an overlapping SWOT SSH pass.")
+        kpi_card(c3, "target", f"{report['forecast']['mean_confidence']*100:.0f}%", "Forecast trust",
+                  "Mean confidence in the model's own drift forecast for the next revisit.")
         ppo_sr = report["rl"].get("procedural", {}).get("ppo", {}).get("success_rate")
-        c4.metric("PPO success", f"{ppo_sr*100:.0f}%" if ppo_sr is not None else "running…",
-                  help="Success rate of the trained navigation agent (training-distribution episodes).")
+        kpi_card(c4, "compass", f"{ppo_sr*100:.0f}%" if ppo_sr is not None else "running…", "PPO success",
+                  "Success rate of the trained navigation agent (training-distribution episodes).")
         st.caption(
             f"Real SWOT L2 LR SSH Expert + OSCAR L4 currents — {report['scene']['n_time_steps']} real time steps, Arabian Sea."
         )
@@ -440,15 +531,15 @@ is in the Evaluation tab.
             )
         st.caption(report["scene"]["source"])
     else:
-        c1.metric("Recall", f"{report['detection']['recall']*100:.1f}%",
-                  help="Share of the ground-truth eddies this run actually detected.")
-        c2.metric("Centroid error", f"{report['detection']['mean_centroid_error_km']:.1f} km",
-                  help="Average distance between a detected eddy's center and its true center.")
-        c3.metric("Forecast error", f"{report['forecast']['mean_forecast_error_km']:.1f} km",
-                  help="Average error in the predicted next-step eddy position.")
+        kpi_card(c1, "shield", f"{report['detection']['recall']*100:.1f}%", "Recall",
+                  "Share of the ground-truth eddies this run actually detected.")
+        kpi_card(c2, "ruler", f"{report['detection']['mean_centroid_error_km']:.1f} km", "Centroid error",
+                  "Average distance between a detected eddy's center and its true center.")
+        kpi_card(c3, "target", f"{report['forecast']['mean_forecast_error_km']:.1f} km", "Forecast error",
+                  "Average error in the predicted next-step eddy position.")
         ppo_sr = report["rl"]["procedural"]["ppo"]["success_rate"]
-        c4.metric("PPO success", f"{ppo_sr*100:.0f}%",
-                  help="Success rate of the trained navigation agent.")
+        kpi_card(c4, "compass", f"{ppo_sr*100:.0f}%", "PPO success",
+                  "Success rate of the trained navigation agent.")
         st.caption(
             "Synthetic rotating-vortex scene (5 eddies, 30 time steps), so every number above can be checked "
             "against ground truth. Switch to the real SWOT+OSCAR source in the sidebar to see this on actual satellite data."
@@ -548,7 +639,7 @@ with tab_detect:
                     lats_l += [lat_q[yi, xi], lat_q[yi, xi] + dlat, None]
             fig.add_trace(go.Scattergeo(
                 lat=lats_l, lon=lons_l, mode="lines",
-                line=dict(color="rgba(20,20,20,0.55)", width=2),
+                line=dict(color="rgba(255,255,255,0.55)", width=2),
                 name="velocity", hoverinfo="skip",
             ))
 
@@ -626,15 +717,15 @@ with tab_detect:
                 projection_type="mercator",
                 resolution=50,
                 lataxis=dict(range=[lat_min - lat_pad, lat_max + lat_pad],
-                              showgrid=True, gridcolor="rgba(13,158,151,0.14)", gridwidth=1),
+                              showgrid=True, gridcolor="rgba(255,255,255,0.08)", gridwidth=1),
                 lonaxis=dict(range=[lon_min - lon_pad, lon_max + lon_pad],
-                              showgrid=True, gridcolor="rgba(13,158,151,0.14)", gridwidth=1),
-                showland=True, landcolor="#eef3ea",
-                showocean=True, oceancolor="#d8edf6",
-                showcountries=True, countrycolor="#a9c2d4",
-                showcoastlines=True, coastlinecolor="#5b8aa3", coastlinewidth=1.2,
+                              showgrid=True, gridcolor="rgba(255,255,255,0.08)", gridwidth=1),
+                showland=True, landcolor="#c9cfbf",
+                showocean=True, oceancolor="#0d2a3c",
+                showcountries=True, countrycolor="#9aa68f",
+                showcoastlines=True, coastlinecolor="#7a98a8", coastlinewidth=1.2,
                 showlakes=False, showrivers=False,
-                bgcolor="#ffffff",
+                bgcolor="#0a2436",
             ),
             height=650, margin=dict(l=0, r=0, t=30, b=0),
             title=f"{date_label}  —  teal \u21ba cyclonic, coral \u21bb anticyclonic",
