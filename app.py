@@ -6,6 +6,7 @@ Run with:  streamlit run app.py
 """
 from __future__ import annotations
 
+import base64
 import json
 import os
 import sys
@@ -50,26 +51,53 @@ st.set_page_config(page_title="EddyHunter", layout="wide", page_icon="🌊")
 # ----------------------------------------------------------------------------
 # Theme
 # ----------------------------------------------------------------------------
-st.markdown(
-    """
+_hero_b64 = base64.b64encode((ROOT / "assets" / "hero_ocean.jpg").read_bytes()).decode("ascii") \
+    if (ROOT / "assets" / "hero_ocean.jpg").exists() else ""
+
+_THEME_CSS = """
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
     <style>
-    /* Modern dark operational dashboard: dark navy surfaces, a teal/cyan
-       accent (reads as "ocean data product"), rounded cards with a soft
-       glow border instead of flat academic rules -- built to look like a
-       tool someone would actually run day to day, not a research figure. */
+    /* Light, commercial ocean-product theme: airy white/sky surfaces, a
+       deep-teal accent lifted from the hero photo, soft shadows instead of
+       flat academic rules -- built to read like a product someone would pay
+       for, not a lab notebook. */
     :root {
-        --bg: #0b0f14;
-        --surface: #121821;
-        --surface-2: #171f2a;
-        --border: #232d3a;
-        --accent: #2dd4bf;
-        --accent-soft: rgba(45, 212, 191, 0.12);
-        --text: #e6edf3;
-        --text-dim: #8b98a5;
+        --bg: #f4f9fb;
+        --surface: #ffffff;
+        --surface-2: #eef6f9;
+        --border: #dde8ec;
+        --accent: #0d9e97;
+        --accent-soft: rgba(13, 158, 151, 0.10);
+        --text: #0b2538;
+        --text-dim: #5b7685;
     }
     html, body, [data-testid="stAppViewContainer"], .stApp { background-color: var(--bg); }
+    .eh-hero {
+        position: relative;
+        border-radius: 20px;
+        overflow: hidden;
+        padding: 3.4rem 2.6rem 2.4rem 2.6rem;
+        margin: 0.2rem 0 1.6rem 0;
+        background-image:
+            linear-gradient(180deg, rgba(5,22,38,0.30) 0%, rgba(8,32,48,0.55) 45%, rgba(244,249,251,0.97) 94%),
+            url('data:image/jpeg;base64,__HERO_B64__');
+        background-size: cover;
+        background-position: center 35%;
+        box-shadow: 0 14px 34px rgba(10,50,70,0.12);
+    }
+    .eh-hero-kicker {
+        color: #bdf0ec; font-weight: 700; letter-spacing: 0.12em; font-size: 0.72rem;
+        text-transform: uppercase; margin-bottom: 0.6rem;
+    }
+    .eh-hero-title {
+        font-family: 'Manrope', sans-serif; font-weight: 800; font-size: 2.6rem;
+        color: #ffffff; margin: 0 0 0.5rem 0; text-shadow: 0 2px 18px rgba(0,0,0,0.35);
+    }
+    .eh-hero-sub {
+        color: #eaf6f5; max-width: 640px; font-size: 1.02rem; line-height: 1.55;
+        text-shadow: 0 1px 10px rgba(0,0,0,0.3);
+    }
     .block-container {padding-top: 2rem; padding-bottom: 3rem; max-width: 1360px;}
     h1, h2, h3, h4 {
         font-family: 'Manrope', 'Inter', -apple-system, sans-serif;
@@ -139,14 +167,27 @@ st.markdown(
     hr { border-color: var(--border); }
     .stButton button[kind="primary"] {
         background-color: var(--accent);
-        color: #06201c;
+        color: #ffffff;
         border: none;
         font-weight: 700;
         border-radius: 8px;
     }
-    .stButton button[kind="primary"]:hover { background-color: #5eead4; color: #06201c; }
+    .stButton button[kind="primary"]:hover { background-color: #0c8c86; color: #ffffff; }
     div[data-testid="stAlert"] { border-radius: 10px; border: 1px solid var(--border); }
     </style>
+"""
+
+st.markdown(_THEME_CSS.replace("__HERO_B64__", _hero_b64), unsafe_allow_html=True)
+
+st.markdown(
+    """
+    <div class="eh-hero">
+        <div class="eh-hero-kicker">Ocean intelligence platform</div>
+        <div class="eh-hero-title">EddyHunter</div>
+        <div class="eh-hero-sub">Live mesoscale eddy detection and tracking from real satellite data —
+        built to help vessels, fleet operators, and marine-debris teams route around (or into) ocean
+        eddies before they get there.</div>
+    </div>
     """,
     unsafe_allow_html=True,
 )
@@ -354,12 +395,6 @@ if source == "real" and not (OUT / "real_scene_fine.nc").exists():
 ds, eddies_df, tracks_df, track_b_df, report = load_outputs(source)
 model = load_ppo_model(source)
 
-st.title("EddyHunter")
-st.caption(
-    "SWOT sea-surface-height + OSCAR surface currents → alpha-complex / persistent-H1 "
-    "eddy detection → tracking & forecasting → PPO navigation agent"
-)
-
 tab_overview, tab_detect, tab_rl, tab_eval = st.tabs(
     ["Overview", "Detection & Tracking", "PPO Navigation", "Evaluation Report"]
 )
@@ -400,25 +435,6 @@ is in the Evaluation tab.
             "against ground truth. Switch to the real SWOT+OSCAR source in the sidebar to see this on actual satellite data."
         )
 
-    st.subheader("Pipeline")
-    st.graphviz_chart(
-        """
-        digraph {
-            rankdir=LR;
-            bgcolor="transparent";
-            node [shape=box, style="rounded,filled", fillcolor="#171f2a", color="#2dd4bf", fontcolor="#e6edf3", fontname="Helvetica"];
-            edge [color="#8b98a5"];
-            SWOT [label="SWOT SSH"]; OSCAR [label="OSCAR u,v"];
-            clean [label="Clean + regrid"];
-            topo [label="Alpha complex\\n+ persistent H1"];
-            poly [label="Eddy polygons\\n+ validation"];
-            track [label="Tracking\\n(Hungarian)"];
-            forecast [label="Forecast\\n(Track B)"];
-            ppo [label="PPO agent"];
-            SWOT -> clean; OSCAR -> clean; clean -> topo -> poly -> track -> forecast -> ppo;
-        }
-        """
-    )
 
 with st.sidebar:
     st.divider()
@@ -435,9 +451,15 @@ with st.sidebar:
 # ----------------------------------------------------------------------------
 with tab_detect:
     n_t = ds.sizes["time"]
+    # Real dates, not an abstract "time step" index -- a sailor doesn't
+    # think in array indices, they think in calendar days. pd.Timestamp
+    # formats a real satellite-revisit date; the index is still what drives
+    # everything underneath, it's just not what we show.
+    date_labels = [pd.Timestamp(v).strftime("%d %b %Y") for v in ds["time"].values]
     ctrl1, ctrl2 = st.columns([3, 1])
     with ctrl1:
-        t = st.slider("Time step", 0, n_t - 1, 0, key="detect_t")
+        date_label = st.select_slider("Date", options=date_labels, value=date_labels[0], key="detect_t")
+        t = date_labels.index(date_label)
     with ctrl2:
         view = st.radio("View", ["Map", "Grid"], horizontal=True, key="detect_view")
 
@@ -506,7 +528,8 @@ with tab_detect:
                 hoverinfo="text",
             ))
 
-        for track_id, g in tracks_df[tracks_df.time_index <= t].groupby("track_id"):
+        TRAIL_WINDOW = 6  # show recent track history only, not the whole series piled up
+        for track_id, g in tracks_df[(tracks_df.time_index <= t) & (tracks_df.time_index > t - TRAIL_WINDOW)].groupby("track_id"):
             g = g.sort_values("time_index")
             if len(g) < 2:
                 continue
@@ -541,10 +564,11 @@ with tab_detect:
                 bgcolor="#ffffff",
             ),
             height=650, margin=dict(l=0, r=0, t=30, b=0),
-            title=f"t={t}  ({str(ds['time'].values[t])[:10]})  —  blue=cyclonic, red=anticyclonic",
+            title=f"{date_label}  —  blue=cyclonic, red=anticyclonic",
         )
         st.caption(
-            "Dots: SSH anomaly. Lines: surface velocity. Filled outlines: validated eddies. Trails: tracks over time."
+            "Dots: SSH anomaly. Lines: surface velocity. Filled outlines: eddies detected on this date. "
+            "Trails: each eddy's last few tracked positions, not a running total."
         )
     else:
         fig.add_trace(go.Heatmap(
@@ -574,7 +598,8 @@ with tab_detect:
                 hovertext=f"{row.eddy_id}<br>P={row.persistence_m:.0f}m<br>area={row.area_km2:.0f}km2",
             ))
 
-        for track_id, g in tracks_df[tracks_df.time_index <= t].groupby("track_id"):
+        TRAIL_WINDOW = 6  # show recent track history only, not the whole series piled up
+        for track_id, g in tracks_df[(tracks_df.time_index <= t) & (tracks_df.time_index > t - TRAIL_WINDOW)].groupby("track_id"):
             g = g.sort_values("time_index")
             if len(g) < 2:
                 continue
@@ -588,16 +613,17 @@ with tab_detect:
         fig.update_layout(
             height=650, xaxis_title="Longitude", yaxis_title="Latitude",
             yaxis=dict(scaleanchor="x"), margin=dict(l=10, r=10, t=30, b=10),
-            title=f"t={t}  ({str(ds['time'].values[t])[:10]})  —  blue=cyclonic, red=anticyclonic",
+            title=f"{date_label}  —  blue=cyclonic, red=anticyclonic",
         )
         st.caption(
             "Pixel-accurate grid view (no basemap). Shaded background: SSH anomaly. Arrows: surface "
-            "velocity (subsampled). Filled outlines: validated eddy polygons. Dotted trails: tracks."
+            "velocity (subsampled). Filled outlines: eddies detected on this date. Dotted trails: each "
+            "eddy's last few tracked positions, not a running total."
         )
 
     st.plotly_chart(fig, width='stretch')
 
-    st.subheader("Detected eddies at this time step")
+    st.subheader("Eddies detected on this date")
     st.dataframe(
         eddies_t[["eddy_id", "rotation", "centroid_lat", "centroid_lon", "area_km2",
                   "persistence_m", "mean_speed", "mean_vorticity"]].round(4),
@@ -609,7 +635,11 @@ with tab_detect:
 # PPO navigation
 # ----------------------------------------------------------------------------
 with tab_rl:
-    st.subheader("Watch the PPO agent chase a forecasted eddy")
+    st.subheader("Autonomous pursuit")
+    st.caption(
+        "Simulates an uncrewed vehicle navigating toward a forecasted eddy using this pipeline's own "
+        "predictions -- compares our trained agent against two simple baselines."
+    )
 
     long_tracks = sorted(tracks_df.track_id.unique().tolist())
     track_lengths = tracks_df.groupby("track_id").size()
@@ -715,41 +745,57 @@ with tab_rl:
                     dict(label="⏸ Pause", method="animate",
                          args=[[None], {"frame": {"duration": 0}, "mode": "immediate"}]),
                 ])],
-                title=f"{policy_name} — success={info['success']}  steps={info['t']}  "
-                      f"travel={info['travel_km']:.0f}km  reward={total_reward:.1f}",
+                title=f"{policy_name} — {'reached the eddy' if info['success'] else 'did not reach it'} in {info['t']} steps",
             ),
         )
         half = cfg.arena_half_km
         fig.update_xaxes(range=[-half, half])
         fig.update_yaxes(range=[-half, half])
+
+        if info["success"]:
+            st.success(
+                f"**{policy_name}** reached the eddy in {info['t']} steps, covering "
+                f"{info['travel_km']:.0f} km."
+            )
+        else:
+            st.error(
+                f"**{policy_name}** did not reach the eddy within {info['t']} steps "
+                f"({info['travel_km']:.0f} km covered)."
+            )
+
         st.plotly_chart(fig, width='stretch')
 
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Success", "Yes" if info["success"] else "No")
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Outcome", "Reached" if info["success"] else "Not reached")
         m2.metric("Steps to resolve", info["t"])
         m3.metric("Distance travelled", f"{info['travel_km']:.0f} km")
-        m4.metric("Episode reward", f"{total_reward:.1f}")
+        with st.expander("Technical details"):
+            st.metric("Episode reward (RL training signal)", f"{total_reward:.1f}")
 
     st.divider()
-    st.subheader("PPO vs. baselines")
+    st.subheader("How much does the trained agent actually help?")
     rl = report["rl"]
-    for scope_name, scope_key in [("Procedural (training distribution)", "procedural"), ("Real detected tracks (replay)", "replay")]:
+    for scope_name, scope_key in [("On training-distribution eddies", "procedural"), ("On real detected tracks", "replay")]:
         if scope_key not in rl:
             continue
         rows = []
-        for policy_key, label in [("ppo", "PPO"), ("direct", "Direct navigation"), ("random", "Random")]:
+        for policy_key, label in [("ppo", "Trained agent"), ("direct", "Simple heading-to-target"), ("random", "Random movement")]:
             d = rl[scope_key][policy_key]
             rows.append({"Policy": label, "Success rate": d["success_rate"], "Mean reward": d["mean_reward"],
                          "Mean travel (km)": d["mean_travel_km"], "Mean steps": d["mean_steps"]})
         rdf = pd.DataFrame(rows)
         st.markdown(f"**{scope_name}**")
-        c1, c2 = st.columns([1, 1])
-        with c1:
+        bar = go.Figure(go.Bar(
+            x=rdf.Policy, y=rdf["Success rate"],
+            marker_color=["#0d9e97", "#f2a65a", "#9aa8ae"],
+            text=[f"{v*100:.0f}%" for v in rdf["Success rate"]], textposition="outside",
+        ))
+        bar.update_layout(height=260, margin=dict(l=10, r=10, t=10, b=10), yaxis_title="Success rate",
+                           yaxis=dict(range=[0, 1], tickformat=".0%"), plot_bgcolor="rgba(0,0,0,0)",
+                           paper_bgcolor="rgba(0,0,0,0)")
+        st.plotly_chart(bar, width='stretch')
+        with st.expander("Full numbers"):
             st.dataframe(rdf.round(2), width='stretch', hide_index=True)
-        with c2:
-            bar = go.Figure(go.Bar(x=rdf.Policy, y=rdf["Success rate"], marker_color=["#2ca02c", "#ff7f0e", "#7f7f7f"]))
-            bar.update_layout(height=250, margin=dict(l=10, r=10, t=10, b=10), yaxis_title="Success rate")
-            st.plotly_chart(bar, width='stretch')
 
 
 # ----------------------------------------------------------------------------
@@ -757,7 +803,14 @@ with tab_rl:
 # ----------------------------------------------------------------------------
 with tab_eval:
     if source == "real":
-        st.subheader("Full evaluation report (real data)")
+        st.subheader("Quality & trust report")
+        xck = report.get("real_world_cross_check")
+        if xck and xck.get("our_agreement_rate") is not None:
+            st.info(
+                f"**{xck['our_agreement_rate']*100:.0f}% of our validated eddies are independently "
+                f"confirmed** by a second, differently-built detector run on the same data — one check "
+                f"of many below for how much to trust these detections."
+            )
         st.caption("Real satellite data has no answer key — these are plausibility and cross-check scores, not an accuracy score against a known truth.")
         with st.expander("ℹ️ How this is validated"):
             st.markdown(
@@ -772,6 +825,26 @@ which is non-gating since coverage is only ~5% of the domain by construction.
     else:
         st.subheader("Full evaluation report (synthetic ground truth)")
 
+    with st.expander("⚙️ How the pipeline works, step by step"):
+        st.graphviz_chart(
+            """
+            digraph {
+                rankdir=LR;
+                bgcolor="transparent";
+                node [shape=box, style="rounded,filled", fillcolor="#eef6f9", color="#0d9e97", fontcolor="#0b2538", fontname="Helvetica"];
+                edge [color="#5b7685"];
+                SWOT [label="SWOT SSH"]; OSCAR [label="OSCAR u,v"];
+                clean [label="Clean + regrid"];
+                topo [label="Alpha complex\n+ persistent H1"];
+                poly [label="Eddy polygons\n+ validation"];
+                track [label="Tracking\n(Hungarian)"];
+                forecast [label="Forecast\n(Track B)"];
+                ppo [label="PPO agent"];
+                SWOT -> clean; OSCAR -> clean; clean -> topo -> poly -> track -> forecast -> ppo;
+            }
+            """
+        )
+
     def _fmt(key, val):
         label = key.replace("_", " ").replace("n ", "# ").strip().capitalize()
         if isinstance(val, bool):
@@ -780,7 +853,16 @@ which is non-gating since coverage is only ~5% of the domain by construction.
             return label, f"{val:,.3f}" if abs(val) < 10 else f"{val:,.1f}"
         return label, val
 
-    def render_section(title, section):
+    SECTION_TAKEAWAYS = {
+        "scene": "What data this run covers.",
+        "detection": "How many eddies were found and how many passed physical plausibility checks.",
+        "track_continuity": "Whether the same eddy was followed correctly across repeat satellite passes.",
+        "forecast": "How confident the model is in where each eddy will drift next.",
+        "rl": "How well the autonomous-pursuit agent performs (see the PPO Navigation tab for the full picture).",
+        "real_world_cross_check": "An independent, differently-built detector used to sanity-check our own results.",
+    }
+
+    def render_section(title, section, key=""):
         if not isinstance(section, dict) or not section:
             return
         note = section.get("note")
@@ -788,7 +870,11 @@ which is non-gating since coverage is only ~5% of the domain by construction.
                    if k != "note" and not isinstance(v, (dict, list))}
         nested = {k: v for k, v in section.items()
                   if k != "note" and isinstance(v, (dict, list))}
-        st.markdown(f"#### {title}")
+        card = st.container(border=True)
+        card.markdown(f"#### {title}")
+        takeaway = SECTION_TAKEAWAYS.get(key)
+        if takeaway:
+            card.caption(takeaway)
         if scalars:
             # Long strings don't fit in a fixed-width metric tile and get
             # visually cut off -- give those their own wrapping text row
@@ -797,13 +883,13 @@ which is non-gating since coverage is only ~5% of the domain by construction.
                           if not (isinstance(v, str) and len(v) > 18)}
             text_items = {k: v for k, v in scalars.items() if k not in tile_items}
             if tile_items:
-                cols = st.columns(min(4, len(tile_items)))
+                cols = card.columns(min(4, len(tile_items)))
                 for i, (k, v) in enumerate(tile_items.items()):
                     label, val = _fmt(k, v)
                     cols[i % len(cols)].metric(label, val)
             for k, v in text_items.items():
                 label, val = _fmt(k, v)
-                st.markdown(f"<div style='margin: 2px 0 10px 0;'>"
+                card.markdown(f"<div style='margin: 2px 0 10px 0;'>"
                             f"<span style='color: var(--text-dim); font-size: 0.8rem;'>{label}</span><br>"
                             f"<span style='font-size: 0.95rem;'>{val}</span></div>", unsafe_allow_html=True)
         for k, v in nested.items():
@@ -814,20 +900,19 @@ which is non-gating since coverage is only ~5% of the domain by construction.
                     row = {"Policy": policy_key.replace("_", " ").title()}
                     row.update({_fmt(kk, vv)[0]: _fmt(kk, vv)[1] for kk, vv in d.items()})
                     rows.append(row)
-                st.markdown(f"**{k.replace('_', ' ').title()}**")
-                st.dataframe(pd.DataFrame(rows), width='stretch', hide_index=True)
+                card.markdown(f"**{k.replace('_', ' ').title()}**")
+                card.dataframe(pd.DataFrame(rows), width='stretch', hide_index=True)
             elif isinstance(v, dict):
-                st.markdown(f"**{k.replace('_', ' ').title()}**")
-                st.dataframe(
+                card.markdown(f"**{k.replace('_', ' ').title()}**")
+                card.dataframe(
                     pd.DataFrame([{"": kk, " ": vv} for kk, vv in v.items()]),
                     width='stretch', hide_index=True,
                 )
             elif isinstance(v, list) and v:
-                st.markdown(f"**{k.replace('_', ' ').title()}**")
-                st.dataframe(pd.DataFrame(v), width='stretch', hide_index=True)
+                card.markdown(f"**{k.replace('_', ' ').title()}**")
+                card.dataframe(pd.DataFrame(v), width='stretch', hide_index=True)
         if note:
-            st.caption(f"ℹ️ {note}")
-        st.divider()
+            card.caption(f"ℹ️ {note}")
 
     section_titles = {
         "scene": "Scene", "detection": "Detection", "track_continuity": "Track continuity",
@@ -835,7 +920,7 @@ which is non-gating since coverage is only ~5% of the domain by construction.
         "real_world_cross_check": "Independent cross-check (closed-contour method)",
     }
     for key, section in report.items():
-        render_section(section_titles.get(key, key.replace("_", " ").title()), section)
+        render_section(section_titles.get(key, key.replace("_", " ").title()), section, key=key)
 
     with st.expander("Raw report JSON"):
         st.json(report)
