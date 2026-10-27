@@ -882,24 +882,16 @@ with tab_rl:
     with st.expander("ℹ️ Why pursuit guidance instead of PPO?"):
         st.markdown(
             """
-We trained a PPO reinforcement-learning agent for this, and it's still here for comparison -- but it
-isn't the recommended policy. On real detected tracks, PPO ties or loses to a simple non-learned
-heuristic (roughly 27% success for PPO vs. 27-33% for the classical baseline), and that's not a
-training bug: real tracks last a median of 3 steps before the satellite loses the eddy again, which is
-too short a horizon for anything reinforcement learning is actually good at. It collapses to a single
-aim-and-go decision, which classical guidance solves exactly, with no training, no model drift, and a
-fully explainable "why did it pick that heading."
+**Pursuit guidance** steers straight at this pipeline's own forecast position for the eddy, recomputed
+fresh every step. It's classical, not learned -- no training, no drift, and every heading it picks is
+fully explainable.
 
-**Pursuit guidance** aims directly at this pipeline's own forecast position for the eddy, recomputed
-fresh each step as new tracking data comes in. (We tried adding a "lead" on top of that forecast, the
-classic pure-pursuit-vs-intercept trick -- it made no measurable difference here, because the forecast
-point already is a forward-looking estimate, not the eddy's raw current position, so there's nothing
-left to lead. We tested that claim rather than assuming it, and simplified once it didn't hold up.)
+We also trained a PPO agent for comparison, and it's kept in the chart below. It doesn't beat pursuit
+guidance here: real satellite tracks are too short-lived for reinforcement learning's strengths to
+show up, so it comes down to the same single aim-and-go decision pursuit guidance already handles.
 
-Reinforcement learning would genuinely earn its place on a harder version of this problem: routing a
-vessel across *several* forecasted eddies at once under a fuel/time budget, deciding which to chase and
-when to wait for a fresher forecast. That's a real long-horizon decision problem -- this project doesn't
-model it yet.
+RL would earn its place on a harder problem -- routing across several eddies at once under a fuel or
+time budget -- which this project doesn't tackle yet.
             """
         )
 
@@ -1078,7 +1070,11 @@ model it yet.
             rows.append({"Policy": label, "Success rate": d["success_rate"], "Mean reward": d["mean_reward"],
                          "Mean travel (km)": d["mean_travel_km"], "Mean steps": d["mean_steps"]})
         rdf = pd.DataFrame(rows)
-        st.markdown(f"**{scope_name}**")
+        st.markdown(
+            f'<div style="font-family: \'Manrope\', sans-serif; font-weight: 700; '
+            f'font-size: 1.02rem; color: var(--text); margin: 4px 0 2px 0;">{scope_name}</div>',
+            unsafe_allow_html=True,
+        )
         bar = go.Figure(go.Bar(
             x=rdf.Policy, y=rdf["Success rate"],
             marker_color=["#0d9e97", "#f2a65a", "#9aa8ae"],
@@ -1109,11 +1105,10 @@ with tab_eval:
         with st.expander("ℹ️ How this is validated"):
             st.markdown(
                 """
-What *is* checked, honestly: physical plausibility (does velocity-derived vorticity sign agree with
-the rotation label; is circulation strong enough to not be noise; is the eddy's own core actually
-enclosed by its ring polygon), track continuity across real SWOT revisits, and — wherever the sparse
-SWOT swath happens to cross a detected eddy — an independent cross-check against real SWOT SSH sign,
-which is non-gating since coverage is only ~5% of the domain by construction.
+Three checks run on every detection: **physical plausibility** (does the eddy's spin direction match
+its measured velocity, is it strong enough to not be noise, is its core inside its own boundary),
+**continuity** across repeat satellite passes, and an **independent cross-check** against raw satellite
+height data wherever the two overlap -- about 5% of the domain, so it's a sanity check, not a gate.
                 """
             )
     else:
@@ -1125,15 +1120,15 @@ which is non-gating since coverage is only ~5% of the domain by construction.
             digraph {
                 rankdir=LR;
                 bgcolor="transparent";
-                node [shape=box, style="rounded,filled", fillcolor="#eef6f9", color="#0d9e97", fontcolor="#0b2538", fontname="Helvetica"];
-                edge [color="#5b7685"];
-                SWOT [label="SWOT SSH"]; OSCAR [label="OSCAR u,v"];
-                clean [label="Clean + regrid"];
-                topo [label="Alpha complex\n+ persistent H1"];
-                poly [label="Eddy polygons\n+ validation"];
-                track [label="Tracking\n(Hungarian)"];
-                forecast [label="Forecast\n(Track B)"];
-                ppo [label="PPO agent"];
+                node [shape=box, style="rounded,filled", fillcolor="#eef6f9", color="#0d9e97", fontcolor="#0b2538", fontname="Helvetica", fontsize=13, margin="0.18,0.12"];
+                edge [color="#5b7685", penwidth=1.4];
+                SWOT [label="Satellite\nheight data"]; OSCAR [label="Current\nvelocity data"];
+                clean [label="Clean &\nalign"];
+                topo [label="Shape\ndetection"];
+                poly [label="Eddy outlines\n& checks"];
+                track [label="Track across\npasses"];
+                forecast [label="Forecast\nnext position"];
+                ppo [label="Navigation\nagent"];
                 SWOT -> clean; OSCAR -> clean; clean -> topo -> poly -> track -> forecast -> ppo;
             }
             """
