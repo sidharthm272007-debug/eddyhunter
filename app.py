@@ -53,6 +53,8 @@ st.set_page_config(page_title="EddyHunter", layout="wide", page_icon="🌊")
 # ----------------------------------------------------------------------------
 _hero_b64 = base64.b64encode((ROOT / "assets" / "hero_ocean.jpg").read_bytes()).decode("ascii") \
     if (ROOT / "assets" / "hero_ocean.jpg").exists() else ""
+_bg_b64 = base64.b64encode((ROOT / "assets" / "bg_ocean.jpg").read_bytes()).decode("ascii") \
+    if (ROOT / "assets" / "bg_ocean.jpg").exists() else ""
 
 _THEME_CSS = """
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -72,7 +74,18 @@ _THEME_CSS = """
         --text: #0b2538;
         --text-dim: #5b7685;
     }
-    html, body, [data-testid="stAppViewContainer"], .stApp { background-color: var(--bg); }
+    html, body, [data-testid="stAppViewContainer"], .stApp {
+        background-color: var(--bg);
+        background-image:
+            linear-gradient(180deg, rgba(244,249,251,0.88) 0%, rgba(244,249,251,0.94) 55%, rgba(244,249,251,0.98) 100%),
+            url('data:image/jpeg;base64,__BG_B64__');
+        background-size: cover;
+        background-position: center top;
+        background-attachment: fixed;
+        background-repeat: no-repeat;
+    }
+    [data-testid="stHeader"] { background-color: transparent; }
+    .block-container { position: relative; z-index: 1; }
     .eh-hero {
         position: relative;
         border-radius: 20px;
@@ -275,7 +288,10 @@ _THEME_CSS = """
     </style>
 """
 
-st.markdown(_THEME_CSS.replace("__HERO_B64__", _hero_b64), unsafe_allow_html=True)
+st.markdown(
+    _THEME_CSS.replace("__HERO_B64__", _hero_b64).replace("__BG_B64__", _bg_b64),
+    unsafe_allow_html=True,
+)
 
 st.markdown(
     """
@@ -670,8 +686,10 @@ with tab_detect:
         finite_bg = np.isfinite(z_sub)
         fig.add_trace(go.Scattergeo(
             lat=lat_grid[finite_bg], lon=lon_grid[finite_bg], mode="markers",
-            marker=dict(size=7, color=z_sub[finite_bg], colorscale="RdBu_r", cmid=0,
-                        colorbar=dict(title="SSHA (m)"), opacity=0.6),
+            marker=dict(size=8, color=z_sub[finite_bg], colorscale="Balance", cmid=0,
+                        colorbar=dict(title="SSHA (m)", tickfont=dict(color="#e7f1f5"),
+                                       title_font=dict(color="#e7f1f5")),
+                        opacity=0.72, line=dict(width=0)),
             name="SSHA", hoverinfo="skip",
         ))
 
@@ -778,12 +796,13 @@ with tab_detect:
                               showgrid=True, gridcolor="rgba(255,255,255,0.08)", gridwidth=1),
                 lonaxis=dict(range=[lon_min - lon_pad, lon_max + lon_pad],
                               showgrid=True, gridcolor="rgba(255,255,255,0.08)", gridwidth=1),
-                showland=True, landcolor="#c9cfbf",
-                showocean=True, oceancolor="#0d2a3c",
-                showcountries=True, countrycolor="#9aa68f",
-                showcoastlines=True, coastlinecolor="#7a98a8", coastlinewidth=1.2,
+                showland=True, landcolor="#e3d8bd",
+                showocean=True, oceancolor="#0a3144",
+                showcountries=True, countrycolor="#b9ab85",
+                showcoastlines=True, coastlinecolor="#f2c879", coastlinewidth=1.4,
                 showlakes=False, showrivers=False,
-                bgcolor="#0a2436",
+                showsubunits=False,
+                bgcolor="#071e2c",
             ),
             height=650, margin=dict(l=0, r=0, t=30, b=0),
             title=f"{date_label}  —  teal \u21ba cyclonic, coral \u21bb anticyclonic",
