@@ -464,12 +464,16 @@ with tab_detect:
     # formats a real satellite-revisit date; the index is still what drives
     # everything underneath, it's just not what we show.
     date_labels = [pd.Timestamp(v).strftime("%d %b %Y") for v in ds["time"].values]
-    ctrl1, ctrl2 = st.columns([3, 1])
+    ctrl1, ctrl2, ctrl3 = st.columns([3, 1, 1.3])
     with ctrl1:
         date_label = st.select_slider("Date", options=date_labels, value=date_labels[0], key="detect_t")
         t = date_labels.index(date_label)
     with ctrl2:
         view = st.radio("View", ["Map", "Grid"], horizontal=True, key="detect_view")
+    with ctrl3:
+        show_trails = st.checkbox("Show recent tracks", value=False, key="detect_trails",
+                                   help="Overlay each eddy's last few tracked positions. Off by default so "
+                                        "the map always reads as \"eddies right now,\" not a pile-up over time.")
 
     ssha_t = ds["ssha"].isel(time=t).values
     u_t = ds["u"].isel(time=t).values
@@ -478,7 +482,9 @@ with tab_detect:
     lons = ds["lon"].values
 
     eddies_t = eddies_df[(eddies_df.time_index == t) & (eddies_df.validated)]
-    colors = {"cyclonic": "#1f77b4", "anticyclonic": "#d62728"}
+    colors = {"cyclonic": "#0d9e97", "anticyclonic": "#e8694a"}
+    fills = {"cyclonic": "rgba(13, 158, 151, 0.18)", "anticyclonic": "rgba(232, 105, 74, 0.18)"}
+    spin = {"cyclonic": "\u21ba", "anticyclonic": "\u21bb"}  # counter-clockwise / clockwise glyph
 
     fig = go.Figure()
     is_map = view.startswith("Map")
@@ -527,26 +533,35 @@ with tab_detect:
         for _, row in eddies_t.iterrows():
             poly = shapely_wkt.loads(row.polygon_wkt)
             xs, ys = poly.exterior.coords.xy
+            c = colors.get(row.rotation, "#5b7685")
             fig.add_trace(go.Scattergeo(
                 lat=list(ys), lon=list(xs), mode="lines", fill="toself",
-                line=dict(color=colors.get(row.rotation, "black"), width=2.5),
-                fillcolor="rgba(0,0,0,0.10)",
+                line=dict(color=c, width=2),
+                fillcolor=fills.get(row.rotation, "rgba(91,118,133,0.15)"),
                 name=row.rotation, showlegend=False,
-                hovertext=f"{row.eddy_id}<br>P={row.persistence_m:.0f}m<br>area={row.area_km2:.0f}km2",
+                hovertext=f"{row.eddy_id} ({row.rotation})<br>P={row.persistence_m:.0f}m<br>area={row.area_km2:.0f}km2",
                 hoverinfo="text",
             ))
-
-        TRAIL_WINDOW = 6  # show recent track history only, not the whole series piled up
-        for track_id, g in tracks_df[(tracks_df.time_index <= t) & (tracks_df.time_index > t - TRAIL_WINDOW)].groupby("track_id"):
-            g = g.sort_values("time_index")
-            if len(g) < 2:
-                continue
-            rot = g.rotation.iloc[0]
+            # A spin-direction glyph at the centroid reads instantly, instead of
+            # relying on the viewer to remember which color means which rotation.
             fig.add_trace(go.Scattergeo(
-                lat=g.centroid_lat, lon=g.centroid_lon, mode="lines+markers",
-                line=dict(color=colors.get(rot, "gray"), width=1.5),
-                marker=dict(size=6), showlegend=False, hoverinfo="skip", opacity=0.8,
+                lat=[row.centroid_lat], lon=[row.centroid_lon], mode="text",
+                text=[spin.get(row.rotation, "")], textfont=dict(size=20, color=c),
+                showlegend=False, hoverinfo="skip",
             ))
+
+        if show_trails:
+            TRAIL_WINDOW = 6  # show recent track history only, not the whole series piled up
+            for track_id, g in tracks_df[(tracks_df.time_index <= t) & (tracks_df.time_index > t - TRAIL_WINDOW)].groupby("track_id"):
+                g = g.sort_values("time_index")
+                if len(g) < 2:
+                    continue
+                rot = g.rotation.iloc[0]
+                fig.add_trace(go.Scattergeo(
+                    lat=g.centroid_lat, lon=g.centroid_lon, mode="lines+markers",
+                    line=dict(color=colors.get(rot, "gray"), width=1.5, dash="dot"),
+                    marker=dict(size=5), showlegend=False, hoverinfo="skip", opacity=0.6,
+                ))
 
         # Scope the geo subplot tightly to the data's own bbox (with a small
         # padding margin) instead of a tile-map zoom level -- the earlier
@@ -572,11 +587,11 @@ with tab_detect:
                 bgcolor="#ffffff",
             ),
             height=650, margin=dict(l=0, r=0, t=30, b=0),
-            title=f"{date_label}  —  blue=cyclonic, red=anticyclonic",
+            title=f"{date_label}  —  teal \u21ba cyclonic, coral \u21bb anticyclonic",
         )
         st.caption(
-            "Dots: SSH anomaly. Lines: surface velocity. Filled outlines: eddies detected on this date. "
-            "Trails: each eddy's last few tracked positions, not a running total."
+            "Dots: SSH anomaly. Lines: surface velocity. Shaded outlines: eddies detected on this date "
+            "(\u21ba teal = cyclonic, \u21bb coral = anticyclonic). Enable \u201cShow recent tracks\u201d above for trail history."
         )
     else:
         fig.add_trace(go.Heatmap(
@@ -598,35 +613,42 @@ with tab_detect:
         for _, row in eddies_t.iterrows():
             poly = shapely_wkt.loads(row.polygon_wkt)
             xs, ys = poly.exterior.coords.xy
+            c = colors.get(row.rotation, "#5b7685")
             fig.add_trace(go.Scatter(
                 x=list(xs), y=list(ys), mode="lines", fill="toself",
-                line=dict(color=colors.get(row.rotation, "black"), width=2),
-                fillcolor="rgba(0,0,0,0)", name=row.rotation,
+                line=dict(color=c, width=2),
+                fillcolor=fills.get(row.rotation, "rgba(91,118,133,0.15)"), name=row.rotation,
                 showlegend=False,
-                hovertext=f"{row.eddy_id}<br>P={row.persistence_m:.0f}m<br>area={row.area_km2:.0f}km2",
+                hovertext=f"{row.eddy_id} ({row.rotation})<br>P={row.persistence_m:.0f}m<br>area={row.area_km2:.0f}km2",
+            ))
+            fig.add_trace(go.Scatter(
+                x=[row.centroid_lon], y=[row.centroid_lat], mode="text",
+                text=[spin.get(row.rotation, "")], textfont=dict(size=18, color=c),
+                showlegend=False, hoverinfo="skip",
             ))
 
-        TRAIL_WINDOW = 6  # show recent track history only, not the whole series piled up
-        for track_id, g in tracks_df[(tracks_df.time_index <= t) & (tracks_df.time_index > t - TRAIL_WINDOW)].groupby("track_id"):
-            g = g.sort_values("time_index")
-            if len(g) < 2:
-                continue
-            rot = g.rotation.iloc[0]
-            fig.add_trace(go.Scatter(
-                x=g.centroid_lon, y=g.centroid_lat, mode="lines+markers",
-                line=dict(color=colors.get(rot, "gray"), width=1, dash="dot"),
-                marker=dict(size=4), showlegend=False, hoverinfo="skip", opacity=0.7,
-            ))
+        if show_trails:
+            TRAIL_WINDOW = 6  # show recent track history only, not the whole series piled up
+            for track_id, g in tracks_df[(tracks_df.time_index <= t) & (tracks_df.time_index > t - TRAIL_WINDOW)].groupby("track_id"):
+                g = g.sort_values("time_index")
+                if len(g) < 2:
+                    continue
+                rot = g.rotation.iloc[0]
+                fig.add_trace(go.Scatter(
+                    x=g.centroid_lon, y=g.centroid_lat, mode="lines+markers",
+                    line=dict(color=colors.get(rot, "gray"), width=1, dash="dot"),
+                    marker=dict(size=4), showlegend=False, hoverinfo="skip", opacity=0.6,
+                ))
 
         fig.update_layout(
             height=650, xaxis_title="Longitude", yaxis_title="Latitude",
             yaxis=dict(scaleanchor="x"), margin=dict(l=10, r=10, t=30, b=10),
-            title=f"{date_label}  —  blue=cyclonic, red=anticyclonic",
+            title=f"{date_label}  —  teal \u21ba cyclonic, coral \u21bb anticyclonic",
         )
         st.caption(
             "Pixel-accurate grid view (no basemap). Shaded background: SSH anomaly. Arrows: surface "
-            "velocity (subsampled). Filled outlines: eddies detected on this date. Dotted trails: each "
-            "eddy's last few tracked positions, not a running total."
+            "velocity (subsampled). Shaded outlines: eddies detected on this date. Enable \u201cShow recent "
+            "tracks\u201d above for dotted trail history."
         )
 
     st.plotly_chart(fig, width='stretch')
