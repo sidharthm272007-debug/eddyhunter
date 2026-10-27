@@ -43,6 +43,7 @@ from eddyhunter.rl.env import EddyChaseEnv, EddyChaseConfig, ReplayStep  # noqa:
 from eddyhunter.rl.baselines import random_policy, pursuit_guidance_policy  # noqa: E402
 from eddyhunter.rl.adapters import track_b_records_to_replay_steps  # noqa: E402
 from eddyhunter.forecast.predict import TrackBRecord  # noqa: E402
+from eddyhunter.detection.fields import EARTH_RADIUS_M  # noqa: E402
 
 OUT = ROOT / "outputs"
 
@@ -1003,8 +1004,16 @@ time budget -- which this project doesn't tackle yet.
             arena_half_km=150.0, step_km=6.0, max_steps=40, success_radius_km=10.0,
             eddy_speed_kmstep_range=(0.0, 3.0), eddy_wobble_kmstep=0.4, agent_start_radius_km=50.0,
         )
+        track_ref_latlon = None
         if mode.startswith("Real") and track_id is not None:
             seq = build_replay_sequence(track_id)
+            # The env itself works in a local km frame (easier for the RL
+            # policy), but that frame is just the real track's own first
+            # detected position re-centered at (0, 0) -- so it inverts
+            # cleanly back to real lat/lon for display (see the conversion
+            # right after the episode finishes, below).
+            sub0 = track_b_df[track_b_df.track_id == track_id].sort_values("time_index").iloc[0]
+            track_ref_latlon = (float(sub0.centroid_lat), float(sub0.centroid_lon))
             env = EddyChaseEnv(config=cfg, mode="replay", replay_sequence=seq)
         else:
             env = EddyChaseEnv(config=cfg, mode="procedural", seed=np.random.randint(0, 1_000_000))
@@ -1029,38 +1038,97 @@ time budget -- which this project doesn't tackle yet.
         eddy_path = np.array(eddy_path)
         pred_path = np.array(pred_path)
 
-        frames = []
-        for k in range(len(agent_path)):
-            frames.append(go.Frame(
-                data=[
-                    go.Scatter(x=agent_path[:k+1, 0], y=agent_path[:k+1, 1], mode="lines+markers",
-                               line=dict(color="#2ca02c", width=2), marker=dict(size=6), name="Agent"),
-                    go.Scatter(x=eddy_path[:k+1, 0], y=eddy_path[:k+1, 1], mode="lines+markers",
-                               line=dict(color="#d62728", width=2), marker=dict(size=6), name="Eddy"),
-                    go.Scatter(x=[pred_path[k, 0]], y=[pred_path[k, 1]], mode="markers",
-                               marker=dict(size=14, symbol="star", color="#ff7f0e"), name="Predicted target"),
-                ],
-                name=str(k),
-            ))
+        anim_buttons = [dict(type="buttons", showactive=False, buttons=[
+            dict(label="▶ Play", method="animate",
+                 args=[None, {"frame": {"duration": 180, "redraw": True}, "fromcurrent": True}]),
+            dict(label="⏸ Pause", method="animate",
+                 args=[[None], {"frame": {"duration": 0}, "mode": "immediate"}]),
+        ])]
+        anim_title = f"{policy_name} — {'reached the eddy' if info['success'] else 'did not reach it'} in {info['t']} steps"
 
-        fig = go.Figure(
-            data=frames[0].data,
-            frames=frames,
-            layout=go.Layout(
-                height=600, xaxis_title="x (km)", yaxis_title="y (km)",
-                yaxis=dict(scaleanchor="x"),
-                updatemenus=[dict(type="buttons", showactive=False, buttons=[
-                    dict(label="▶ Play", method="animate",
-                         args=[None, {"frame": {"duration": 180, "redraw": True}, "fromcurrent": True}]),
-                    dict(label="⏸ Pause", method="animate",
-                         args=[[None], {"frame": {"duration": 0}, "mode": "immediate"}]),
-                ])],
-                title=f"{policy_name} — {'reached the eddy' if info['success'] else 'did not reach it'} in {info['t']} steps",
-            ),
-        )
-        half = cfg.arena_half_km
-        fig.update_xaxes(range=[-half, half])
-        fig.update_yaxes(range=[-half, half])
+        if track_ref_latlon is not None:
+            # Invert the same equirectangular projection adapters.py used to
+            # build the replay sequence, so the whole episode -- agent,
+            # eddy, and predicted target -- plots on real latitude/longitude
+            # instead of an abstract, unanchored x/y grid.
+            ref_lat, ref_lon = track_ref_latlon
+
+            def _km_to_latlon(xy_km):
+                lat = ref_lat + np.rad2deg((xy_km[:, 1] * 1000.0) / EARTH_RADIUS_M)
+                lon = ref_lon + np.rad2deg((xy_km[:, 0] * 1000.0) / (EARTH_RADIUS_M * np.cos(np.deg2rad(ref_lat))))
+                return lat, lon
+
+            agent_lat, agent_lon = _km_to_latlon(agent_path)
+            eddy_lat, eddy_lon = _km_to_latlon(eddy_path)
+            pred_lat, pred_lon = _km_to_latlon(pred_path)
+
+            frames = []
+            for k in range(len(agent_path)):
+                frames.append(go.Frame(
+                    data=[
+                        go.Scattergeo(lat=agent_lat[:k+1], lon=agent_lon[:k+1], mode="lines+markers",
+                                      line=dict(color="#2ca02c", width=2.5), marker=dict(size=8), name="Agent"),
+                        go.Scattergeo(lat=eddy_lat[:k+1], lon=eddy_lon[:k+1], mode="lines+markers",
+                                      line=dict(color="#d62728", width=2.5), marker=dict(size=8), name="Eddy"),
+                        go.Scattergeo(lat=[pred_lat[k]], lon=[pred_lon[k]], mode="markers",
+                                      marker=dict(size=18, symbol="star", color="#ff7f0e"), name="Predicted target"),
+                    ],
+                    name=str(k),
+                ))
+
+            all_lat = np.concatenate([agent_lat, eddy_lat, pred_lat])
+            all_lon = np.concatenate([agent_lon, eddy_lon, pred_lon])
+            lat_pad = max(0.4, (all_lat.max() - all_lat.min()) * 0.35 + 0.2)
+            lon_pad = max(0.4, (all_lon.max() - all_lon.min()) * 0.35 + 0.2)
+            fig = go.Figure(
+                data=frames[0].data,
+                frames=frames,
+                layout=go.Layout(
+                    height=600,
+                    geo=dict(
+                        projection_type="mercator", resolution=50,
+                        lataxis=dict(range=[all_lat.min() - lat_pad, all_lat.max() + lat_pad]),
+                        lonaxis=dict(range=[all_lon.min() - lon_pad, all_lon.max() + lon_pad]),
+                        showland=True, landcolor="#e3d8bd",
+                        showocean=True, oceancolor="#0a3144",
+                        showcountries=True, countrycolor="#b9ab85",
+                        showcoastlines=True, coastlinecolor="#f2c879", coastlinewidth=1.3,
+                        bgcolor="#071e2c",
+                    ),
+                    updatemenus=anim_buttons,
+                    title=anim_title,
+                ),
+            )
+            st.caption("Real latitude/longitude, anchored to this track's own first detected position.")
+        else:
+            frames = []
+            for k in range(len(agent_path)):
+                frames.append(go.Frame(
+                    data=[
+                        go.Scatter(x=agent_path[:k+1, 0], y=agent_path[:k+1, 1], mode="lines+markers",
+                                   line=dict(color="#2ca02c", width=2), marker=dict(size=6), name="Agent"),
+                        go.Scatter(x=eddy_path[:k+1, 0], y=eddy_path[:k+1, 1], mode="lines+markers",
+                                   line=dict(color="#d62728", width=2), marker=dict(size=6), name="Eddy"),
+                        go.Scatter(x=[pred_path[k, 0]], y=[pred_path[k, 1]], mode="markers",
+                                   marker=dict(size=14, symbol="star", color="#ff7f0e"), name="Predicted target"),
+                    ],
+                    name=str(k),
+                ))
+
+            fig = go.Figure(
+                data=frames[0].data,
+                frames=frames,
+                layout=go.Layout(
+                    height=600, xaxis_title="x (km)", yaxis_title="y (km)",
+                    yaxis=dict(scaleanchor="x"),
+                    updatemenus=anim_buttons,
+                    title=anim_title,
+                ),
+            )
+            half = cfg.arena_half_km
+            fig.update_xaxes(range=[-half, half])
+            fig.update_yaxes(range=[-half, half])
+            st.caption("Procedural (randomly generated) episode — relative distance only, not a real location.")
 
         if info["success"]:
             st.success(
