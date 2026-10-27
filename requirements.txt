@@ -22,3 +22,4 @@ pandas>=2.1
 # out here on purpose so Streamlit Cloud never installs it.
 
 # force a clean Streamlit Cloud rebuild
+# force a clean rebuild: restore the git-committed validated baseline, stale local Force-sync state was carrying over across redeploys
