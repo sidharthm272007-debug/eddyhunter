@@ -486,6 +486,17 @@ with tab_detect:
     fills = {"cyclonic": "rgba(13, 158, 151, 0.18)", "anticyclonic": "rgba(232, 105, 74, 0.18)"}
     spin = {"cyclonic": "\u21ba", "anticyclonic": "\u21bb"}  # counter-clockwise / clockwise glyph
 
+    def eddy_hover(row) -> str:
+        # Precise, specific info a sailor would actually want on hover --
+        # exact position (not just "see the shape on the map"), not only
+        # the physical-property summary the old tooltip gave.
+        return (
+            f"<b>{row.eddy_id}</b> ({row.rotation})<br>"
+            f"Position: {row.centroid_lat:.4f}\u00b0N, {row.centroid_lon:.4f}\u00b0E<br>"
+            f"Area: {row.area_km2:.0f} km\u00b2 &nbsp; Persistence: {row.persistence_m:.0f} m<br>"
+            f"Mean speed: {row.mean_speed:.2f} m/s &nbsp; Vorticity: {row.mean_vorticity:.2e} s\u207b\u00b9"
+        )
+
     fig = go.Figure()
     is_map = view.startswith("Map")
 
@@ -539,15 +550,16 @@ with tab_detect:
                 line=dict(color=c, width=2),
                 fillcolor=fills.get(row.rotation, "rgba(91,118,133,0.15)"),
                 name=row.rotation, showlegend=False,
-                hovertext=f"{row.eddy_id} ({row.rotation})<br>P={row.persistence_m:.0f}m<br>area={row.area_km2:.0f}km2",
+                hovertext=eddy_hover(row),
                 hoverinfo="text",
             ))
             # A spin-direction glyph at the centroid reads instantly, instead of
-            # relying on the viewer to remember which color means which rotation.
+            # relying on the viewer to remember which color means which rotation --
+            # also hoverable, so clicking the glyph itself gives the same detail.
             fig.add_trace(go.Scattergeo(
                 lat=[row.centroid_lat], lon=[row.centroid_lon], mode="text",
                 text=[spin.get(row.rotation, "")], textfont=dict(size=20, color=c),
-                showlegend=False, hoverinfo="skip",
+                showlegend=False, hovertext=eddy_hover(row), hoverinfo="text",
             ))
 
         if show_trails:
@@ -619,12 +631,12 @@ with tab_detect:
                 line=dict(color=c, width=2),
                 fillcolor=fills.get(row.rotation, "rgba(91,118,133,0.15)"), name=row.rotation,
                 showlegend=False,
-                hovertext=f"{row.eddy_id} ({row.rotation})<br>P={row.persistence_m:.0f}m<br>area={row.area_km2:.0f}km2",
+                hovertext=eddy_hover(row), hoverinfo="text",
             ))
             fig.add_trace(go.Scatter(
                 x=[row.centroid_lon], y=[row.centroid_lat], mode="text",
                 text=[spin.get(row.rotation, "")], textfont=dict(size=18, color=c),
-                showlegend=False, hoverinfo="skip",
+                showlegend=False, hovertext=eddy_hover(row), hoverinfo="text",
             ))
 
         if show_trails:
