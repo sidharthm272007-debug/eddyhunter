@@ -103,6 +103,13 @@ st.markdown(
         font-size: 0.78rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: unset !important;
+    }
+    div[data-testid="stMetricLabel"] p {
+        white-space: normal !important;
+        overflow-wrap: break-word;
     }
     /* Tabs: filled pill for the active tab in the accent color -- a clear
        "you are here" state, like a real product's nav rather than a
